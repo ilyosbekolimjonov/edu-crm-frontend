@@ -1,4 +1,5 @@
 import { Box, Paper, Stack, Typography } from "@mui/material";
+import logo from "../../assets/logo.svg"
 
 export default function SidebarNav({ items, activeItem, onSelect }) {
     return (
@@ -13,15 +14,8 @@ export default function SidebarNav({ items, activeItem, onSelect }) {
             }}
         >
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3, px: 1 }}>
-                <Box
-                    sx={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: "50%",
-                        background: "linear-gradient(135deg, #f6be5f, #ff9f1a)",
-                    }}
-                />
-                <Typography sx={{ fontWeight: 700, color: "#5e4ea7" }}>LMS</Typography>
+                <Box component="img" src={logo} alt="Knowna logo" sx={{ width: 30 }}/>
+                <Typography sx={{ fontWeight: 700, color: "#5e4ea7" }}>KNOWVA</Typography>
             </Stack>
 
             <Stack spacing={1}>
