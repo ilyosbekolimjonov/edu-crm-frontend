@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <circle cx="32" cy="32" r="30" fill="#0F172A"/>
+
+  <!-- K letter -->
+  <path d="M20 44 V20 M20 32 L40 20 M20 32 L40 44"
+        stroke="#22C55E"
+        stroke-width="6"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Spark -->
+  <circle cx="45" cy="22" r="3" fill="#22C55E"/>
+</svg>
