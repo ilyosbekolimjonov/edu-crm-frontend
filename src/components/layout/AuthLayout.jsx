@@ -8,7 +8,7 @@ export default function AuthLayout({ children }) {
                     <div className="absolute top-1/2 left-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#c7b6e5] blur-3xl" />
                 </div>
 
-                <div className="relative z-10 max-w-[520px] px-10 text-center">
+                <div className="relative z-10 max-w-130 px-10 text-center">
                     <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/70 shadow-lg backdrop-blur">
                         <span className="text-3xl font-bold text-[#9c6b3f]">E</span>
                     </div>
@@ -22,7 +22,7 @@ export default function AuthLayout({ children }) {
                         nazorat qiling.
                     </p>
 
-                    <div className="mt-10 rounded-[32px] border border-white/50 bg-white/50 p-6 shadow-2xl backdrop-blur">
+                    <div className="mt-10 rounded-8 border border-white/50 bg-white/50 p-6 shadow-2xl backdrop-blur">
                         <div className="grid grid-cols-2 gap-4 text-left">
                             <div className="rounded-2xl bg-[#fff8ef] p-4">
                                 <p className="text-sm text-[#8b6b48]">Xavfsiz kirish</p>

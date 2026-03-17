@@ -117,13 +117,13 @@ export default function LoginPage() {
                     >
                         <TextField
                             fullWidth
-                            label="Kirish"
+                            label="Email / Username"
                             variant="outlined"
                             {...register("login", {
                                 required: "Login majburiy",
                             })}
                             error={!!errors.login}
-                            helperText={errors.login?.message}
+                            helperText={errors.login?.message || "Masalan: aliyev"}
                             sx={{
                                 "& .MuiOutlinedInput-root": {
                                     borderRadius: "10px",

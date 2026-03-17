@@ -3,6 +3,7 @@ import {
     Box,
     Button,
     Drawer,
+    MenuItem,
     Stack,
     TextField,
     Typography,
@@ -19,9 +20,10 @@ const initialForm = {
     experience: "0",
     telegram: "",
     linkedin: "",
+    courseIds: [],
 };
 
-export default function TeacherCreateDrawer({ open, onClose, onSubmit }) {
+export default function TeacherCreateDrawer({ open, onClose, onSubmit, availableCourses = [] }) {
     const [form, setForm] = useState(initialForm);
     const [submitting, setSubmitting] = useState(false);
 
@@ -110,6 +112,21 @@ export default function TeacherCreateDrawer({ open, onClose, onSubmit }) {
                     onChange={handleChange("linkedin")}
                     fullWidth
                 />
+                <TextField
+                    select
+                    label="O'qitadigan kurslar"
+                    value={form.courseIds}
+                    onChange={(event) => setForm((prev) => ({ ...prev, courseIds: event.target.value }))}
+                    fullWidth
+                    slotProps={{ select: { multiple: true } }}
+                    helperText="Ixtiyoriy: kurslarni biriktirib qo'ying"
+                >
+                    {availableCourses.map((course) => (
+                        <MenuItem key={course.id} value={course.id}>
+                            {course.name}
+                        </MenuItem>
+                    ))}
+                </TextField>
 
                 <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ pt: 1 }}>
                     <Button onClick={handleClose} disabled={submitting}>
