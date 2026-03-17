@@ -1,53 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-    Accordion,
-    AccordionDetails,
-    AccordionSummary,
-    Avatar,
-    Button,
-    Box,
-    Chip,
-    CircularProgress,
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-    IconButton,
-    InputAdornment,
-    MenuItem,
-    Paper,
-    Select,
-    Stack,
-    TextField,
-    Typography,
-} from "@mui/material";
-import {
-    AutoGraph,
-    Book,
-    CalendarMonth,
-    DarkMode,
-    DeleteOutline,
-    DiamondOutlined,
-    EditOutlined,
-    ExpandMore,
-    Groups,
-    Home,
-    Inventory2,
-    MailOutline,
-    MonetizationOn,
-    NotificationsNone,
-    Person,
-    School,
-    Search,
-    Settings,
-} from "@mui/icons-material";
+import { Accordion, AccordionDetails, AccordionSummary, Avatar, Button, Box, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, MenuItem, Paper, Select, Stack, TextField, Typography, } from "@mui/material";
+import { AutoGraph, Book, CalendarMonth, DarkMode, DeleteOutline, DiamondOutlined, EditOutlined, ExpandMore, Groups, Home, Inventory2, MailOutline, MonetizationOn, NotificationsNone, Person, School, Search, Settings, } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import api from "../services/axios";
 import useAuthStore from "../store/auth.store";
 import SidebarNav from "../components/dashboard/SidebarNav";
 import StudentsSection from "../components/dashboard/StudentsSection";
 import TeachersSection from "../components/dashboard/TeachersSection";
+import EmployeesManagementSection from "../components/dashboard/EmployeesManagementSection";
+import GroupsSection from "../components/dashboard/GroupsSection";
 
 const menuItems = [
     { label: "Asosiy", icon: <Home fontSize="small" /> },
@@ -72,6 +34,15 @@ const managementTabs = [
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 const ACTIVE_ITEM_KEY = "lms.admin.activeItem";
+const GROUP_DAY_OPTIONS = [
+    { value: "MONDAY", label: "Dushanba" },
+    { value: "TUESDAY", label: "Seshanba" },
+    { value: "WEDNESDAY", label: "Chorshanba" },
+    { value: "THURSDAY", label: "Payshanba" },
+    { value: "FRIDAY", label: "Juma" },
+    { value: "SATURDAY", label: "Shanba" },
+    { value: "SUNDAY", label: "Yakshanba" },
+];
 
 export default function AdminDashboardPage() {
     const navigate = useNavigate();
@@ -90,6 +61,7 @@ export default function AdminDashboardPage() {
         archived: 0,
     });
     const [coursesData, setCoursesData] = useState([]);
+    const [groupsData, setGroupsData] = useState([]);
     const [mentorsData, setMentorsData] = useState([]);
     const [roomsData, setRoomsData] = useState([]);
     const [upcomingGroups, setUpcomingGroups] = useState([]);
@@ -104,9 +76,22 @@ export default function AdminDashboardPage() {
     const [editingRoom, setEditingRoom] = useState(null);
     const [roomEditDialogOpen, setRoomEditDialogOpen] = useState(false);
     const [updatingRoom, setUpdatingRoom] = useState(false);
+    const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+    const [creatingGroup, setCreatingGroup] = useState(false);
+    const [employeesData, setEmployeesData] = useState([]);
     const [roomForm, setRoomForm] = useState({
         name: "",
         capacity: "",
+    });
+    const [groupForm, setGroupForm] = useState({
+        name: "",
+        courseId: "",
+        mentorId: "",
+        roomId: "",
+        startDate: "",
+        startTime: "09:00",
+        durationMinutes: "90",
+        weekDays: [],
     });
     const [courseForm, setCourseForm] = useState({
         name: "",
@@ -150,71 +135,79 @@ export default function AdminDashboardPage() {
     const loadDashboardData = async () => {
         setLoading(true);
 
-        const results = await Promise.allSettled([
-            api.get("/courses"),
-            api.get("/groups"),
-            api.get("/rooms"),
-            api.get("/purchased-courses"),
-            api.get("/homework-submissions"),
-        ]);
+        try {
+            const results = await Promise.allSettled([
+                api.get("/courses"),
+                api.get("/groups"),
+                api.get("/rooms"),
+                api.get("/purchased-courses"),
+                api.get("/homework-submissions"),
+                api.get("/auth/users"),
+            ]);
 
-        const [coursesRes, groupsRes, roomsRes, paymentsRes, submissionsRes] = results;
+            const [coursesRes, groupsRes, roomsRes, paymentsRes, submissionsRes, usersRes] = results;
 
-        const hadError = results.some((result) => result.status === "rejected");
-        if (hadError) {
-            toast.error("Ba'zi dashboard ma'lumotlari yuklanmadi");
+            const hadError = results.some((result) => result.status === "rejected");
+            if (hadError) {
+                toast.error("Ba'zi dashboard ma'lumotlari yuklanmadi");
+            }
+
+            const courses =
+                coursesRes.status === "fulfilled" ? toArray(coursesRes.value.data) : [];
+            const groups =
+                groupsRes.status === "fulfilled" ? toArray(groupsRes.value.data) : [];
+            const rooms = roomsRes.status === "fulfilled" ? toArray(roomsRes.value.data) : [];
+            const payments =
+                paymentsRes.status === "fulfilled" ? toArray(paymentsRes.value.data) : [];
+            const submissions =
+                submissionsRes.status === "fulfilled"
+                    ? toArray(submissionsRes.value.data)
+                    : [];
+            const users = usersRes.status === "fulfilled" ? toArray(usersRes.value.data) : [];
+
+            const uniqueStudents = new Set(
+                payments
+                    .map((payment) => payment.userId ?? payment.user?.id)
+                    .filter(Boolean),
+            );
+
+            const activeGroups = groups.filter((group) => group.status === "ACTIVE").length;
+            const debtorsCount = submissions.filter(
+                (submission) => submission.status === "PENDING",
+            ).length;
+            const frozenCount = rooms.filter((room) => room.isActive === false).length;
+            const archivedCount = courses.filter((course) => course.published === false).length;
+
+            setStats({
+                activeStudents: uniqueStudents.size,
+                groups: activeGroups || groups.length,
+                debtors: debtorsCount,
+                frozen: frozenCount,
+                archived: archivedCount,
+            });
+
+            setCoursesData(courses.slice(0, 10));
+            setRoomsData(rooms.slice(0, 10));
+            setGroupsData(groups);
+            setEmployeesData(users.filter((user) => user.role !== "MENTOR" && user.role !== "STUDENT"));
+
+            setUpcomingGroups(
+                groups
+                    .filter((group) => group.status === "ACTIVE")
+                    .map((group) => ({
+                        id: group.id,
+                        name: group.name,
+                        startTime: group.startTime,
+                        weekDays: toArray(group.weekDays).join(", "),
+                        students: group._count?.studentGroups ?? 0,
+                    }))
+                    .slice(0, 8),
+            );
+        } catch {
+            toast.error("Dashboard ma'lumotlarini yuklashda xatolik yuz berdi");
+        } finally {
+            setLoading(false);
         }
-
-        const courses =
-            coursesRes.status === "fulfilled" ? toArray(coursesRes.value.data) : [];
-        const groups =
-            groupsRes.status === "fulfilled" ? toArray(groupsRes.value.data) : [];
-        const rooms = roomsRes.status === "fulfilled" ? toArray(roomsRes.value.data) : [];
-        const payments =
-            paymentsRes.status === "fulfilled" ? toArray(paymentsRes.value.data) : [];
-        const submissions =
-            submissionsRes.status === "fulfilled"
-                ? toArray(submissionsRes.value.data)
-                : [];
-
-        const uniqueStudents = new Set(
-            payments
-                .map((payment) => payment.userId ?? payment.user?.id)
-                .filter(Boolean),
-        );
-
-        const activeGroups = groups.filter((group) => group.status === "ACTIVE").length;
-        const debtorsCount = submissions.filter(
-            (submission) => submission.status === "PENDING",
-        ).length;
-        const frozenCount = rooms.filter((room) => room.isActive === false).length;
-        const archivedCount = courses.filter((course) => course.published === false).length;
-
-        setStats({
-            activeStudents: uniqueStudents.size,
-            groups: activeGroups || groups.length,
-            debtors: debtorsCount,
-            frozen: frozenCount,
-            archived: archivedCount,
-        });
-
-        setCoursesData(courses.slice(0, 10));
-        setRoomsData(rooms.slice(0, 10));
-
-        setUpcomingGroups(
-            groups
-                .filter((group) => group.status === "ACTIVE")
-                .map((group) => ({
-                    id: group.id,
-                    name: group.name,
-                    startTime: group.startTime,
-                    weekDays: toArray(group.weekDays).join(", "),
-                    students: group._count?.studentGroups ?? 0,
-                }))
-                .slice(0, 8),
-        );
-
-        setLoading(false);
     };
 
     useEffect(() => {
@@ -425,6 +418,55 @@ export default function AdminDashboardPage() {
         }
     };
 
+    const handleCreateGroup = async () => {
+        if (
+            !groupForm.name ||
+            !groupForm.courseId ||
+            !groupForm.mentorId ||
+            !groupForm.roomId ||
+            !groupForm.startDate ||
+            !groupForm.startTime ||
+            !groupForm.durationMinutes ||
+            groupForm.weekDays.length === 0
+        ) {
+            toast.error("Guruh uchun barcha majburiy maydonlarni to'ldiring");
+            return;
+        }
+
+        setCreatingGroup(true);
+        try {
+            await api.post("/groups", {
+                name: groupForm.name,
+                courseId: Number(groupForm.courseId),
+                mentorId: Number(groupForm.mentorId),
+                roomId: Number(groupForm.roomId),
+                startDate: groupForm.startDate,
+                startTime: groupForm.startTime,
+                durationMinutes: Number(groupForm.durationMinutes),
+                weekDays: groupForm.weekDays,
+            });
+
+            toast.success("Guruh yaratildi");
+            setGroupDialogOpen(false);
+            setGroupForm({
+                name: "",
+                courseId: "",
+                mentorId: "",
+                roomId: "",
+                startDate: "",
+                startTime: "09:00",
+                durationMinutes: "90",
+                weekDays: [],
+            });
+            await loadDashboardData();
+        } catch (error) {
+            const message = error?.response?.data?.message || "Guruh yaratishda xatolik";
+            toast.error(Array.isArray(message) ? message[0] : message);
+        } finally {
+            setCreatingGroup(false);
+        }
+    };
+
     const statCards = useMemo(
         () => [
             {
@@ -627,6 +669,8 @@ export default function AdminDashboardPage() {
                                     </AccordionDetails>
                                 </Accordion>
                             </>
+                        ) : activeItem === "Guruhlar" ? (
+                            <GroupsSection />
                         ) : activeItem === "Talabalar" ? (
                             <StudentsSection />
                         ) : activeItem === "O'qituvchilar" ? (
@@ -779,6 +823,8 @@ export default function AdminDashboardPage() {
                                             </Box>
                                         )}
                                     </Paper>
+                                ) : activeManagementTab === "Xodimlar" ? (
+                                    <EmployeesManagementSection />
                                 ) : (
                                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e9ecf2" }}>
                                         <Typography sx={{ color: "#6b7280" }}>
@@ -963,6 +1009,155 @@ export default function AdminDashboardPage() {
                         sx={{ textTransform: "none" }}
                     >
                         {creatingRoom ? "Saqlanmoqda..." : "Saqlash"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={groupDialogOpen}
+                onClose={() => (!creatingGroup ? setGroupDialogOpen(false) : null)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Yangi guruh qo'shish</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ pt: 1 }}>
+                        <TextField
+                            label="Guruh nomi"
+                            value={groupForm.name}
+                            onChange={(event) =>
+                                setGroupForm((prev) => ({ ...prev, name: event.target.value }))
+                            }
+                            fullWidth
+                        />
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                            <TextField
+                                select
+                                label="Kurs"
+                                value={groupForm.courseId}
+                                onChange={(event) =>
+                                    setGroupForm((prev) => ({ ...prev, courseId: event.target.value }))
+                                }
+                                fullWidth
+                            >
+                                {coursesData.map((course) => (
+                                    <MenuItem key={course.id} value={course.id}>
+                                        {course.name}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                label="Xona"
+                                value={groupForm.roomId}
+                                onChange={(event) =>
+                                    setGroupForm((prev) => ({ ...prev, roomId: event.target.value }))
+                                }
+                                fullWidth
+                            >
+                                {roomsData.map((room) => (
+                                    <MenuItem key={room.id} value={room.id}>
+                                        {room.name}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        </Stack>
+                        <TextField
+                            select
+                            label="O'qituvchi"
+                            value={groupForm.mentorId}
+                            onChange={(event) =>
+                                setGroupForm((prev) => ({ ...prev, mentorId: event.target.value }))
+                            }
+                            fullWidth
+                        >
+                            {mentorsData.map((mentor) => (
+                                <MenuItem key={mentor.id} value={mentor.id}>
+                                    {mentor.fullName}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                            <TextField
+                                label="Boshlanish sanasi"
+                                type="date"
+                                value={groupForm.startDate}
+                                onChange={(event) =>
+                                    setGroupForm((prev) => ({ ...prev, startDate: event.target.value }))
+                                }
+                                fullWidth
+                                slotProps={{ inputLabel: { shrink: true } }}
+                            />
+                            <TextField
+                                label="Dars vaqti"
+                                type="time"
+                                value={groupForm.startTime}
+                                onChange={(event) =>
+                                    setGroupForm((prev) => ({ ...prev, startTime: event.target.value }))
+                                }
+                                fullWidth
+                                slotProps={{ inputLabel: { shrink: true } }}
+                            />
+                            <TextField
+                                label="Davomiyligi (min)"
+                                type="number"
+                                value={groupForm.durationMinutes}
+                                onChange={(event) =>
+                                    setGroupForm((prev) => ({ ...prev, durationMinutes: event.target.value }))
+                                }
+                                fullWidth
+                                slotProps={{ htmlInput: { min: 30 } }}
+                            />
+                        </Stack>
+
+                        <Box>
+                            <Typography sx={{ fontSize: 13, color: "#4b5563", mb: 0.5 }}>
+                                Dars kunlari
+                            </Typography>
+                            <FormGroup row>
+                                {GROUP_DAY_OPTIONS.map((day) => (
+                                    <FormControlLabel
+                                        key={day.value}
+                                        control={
+                                            <Checkbox
+                                                checked={groupForm.weekDays.includes(day.value)}
+                                                onChange={(event) => {
+                                                    if (event.target.checked) {
+                                                        setGroupForm((prev) => ({
+                                                            ...prev,
+                                                            weekDays: [...prev.weekDays, day.value],
+                                                        }));
+                                                    } else {
+                                                        setGroupForm((prev) => ({
+                                                            ...prev,
+                                                            weekDays: prev.weekDays.filter((item) => item !== day.value),
+                                                        }));
+                                                    }
+                                                }}
+                                            />
+                                        }
+                                        label={day.label}
+                                    />
+                                ))}
+                            </FormGroup>
+                        </Box>
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button
+                        onClick={() => setGroupDialogOpen(false)}
+                        disabled={creatingGroup}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Bekor qilish
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleCreateGroup}
+                        disabled={creatingGroup}
+                        sx={{ textTransform: "none" }}
+                    >
+                        {creatingGroup ? "Saqlanmoqda..." : "Saqlash"}
                     </Button>
                 </DialogActions>
             </Dialog>
