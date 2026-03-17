@@ -1,7 +1,7 @@
 export default function AuthLayout({ children }) {
     return (
         <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-[#f7f7f4]">
-            <div className="hidden lg:flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#f6f1e8] via-[#eee7db] to-[#e9dfd2]">
+            <div className="hidden lg:flex items-center justify-center relative overflow-hidden bg-linear-to-br from-[#f6f1e8] via-[#eee7db] to-[#e9dfd2]">
                 <div className="absolute inset-0 opacity-30">
                     <div className="absolute top-20 left-20 h-56 w-56 rounded-full bg-[#d2b48c] blur-3xl" />
                     <div className="absolute bottom-20 right-20 h-72 w-72 rounded-full bg-[#b8c99d] blur-3xl" />
