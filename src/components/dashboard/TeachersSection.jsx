@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+    Avatar,
     Button,
     CircularProgress,
     Dialog,
@@ -23,6 +24,7 @@ import {
     deleteUserRequest,
     getUsersRequest,
     registerStudentRequest,
+    uploadUserImageRequest,
     updateUserRequest,
 } from "../../services/auth.service";
 import api from "../../services/axios";
@@ -73,6 +75,12 @@ export default function TeachersSection() {
     }, []);
 
     const handleCreateTeacher = async (form) => {
+        let image;
+        if (form.imageFile) {
+            const uploaded = await uploadUserImageRequest(form.imageFile);
+            image = uploaded?.imageUrl;
+        }
+
         const payload = {
             fullName: form.fullName,
             username: form.username,
@@ -80,6 +88,7 @@ export default function TeachersSection() {
             phone: form.phone,
             password: form.password,
             role: "MENTOR",
+            image,
             about: form.about || undefined,
             experience: Number.isNaN(Number(form.experience)) ? 0 : Math.max(0, Number(form.experience)),
             telegram: form.telegram || undefined,
@@ -233,7 +242,17 @@ export default function TeachersSection() {
                         teachers.map((teacher, index) => (
                             <TableRow key={teacher.id}>
                                 <TableCell>{index + 1}</TableCell>
-                                <TableCell>{teacher.fullName}</TableCell>
+                                <TableCell>
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Avatar
+                                            src={teacher.image ? `${api.defaults.baseURL}${teacher.image}` : undefined}
+                                            sx={{ width: 28, height: 28, fontSize: 12 }}
+                                        >
+                                            {teacher.fullName?.[0] || "M"}
+                                        </Avatar>
+                                        <Typography>{teacher.fullName}</Typography>
+                                    </Stack>
+                                </TableCell>
                                 <TableCell>{teacher.username}</TableCell>
                                 <TableCell>{teacher.phone}</TableCell>
                                 <TableCell>{teacher.email}</TableCell>

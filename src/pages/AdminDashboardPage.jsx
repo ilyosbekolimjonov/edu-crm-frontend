@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Accordion, AccordionDetails, AccordionSummary, Avatar, Button, Box, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, MenuItem, Paper, Select, Stack, TextField, Typography, } from "@mui/material";
 import { AutoGraph, Book, CalendarMonth, DarkMode, DeleteOutline, DiamondOutlined, EditOutlined, ExpandMore, Groups, Home, Inventory2, MailOutline, MonetizationOn, NotificationsNone, Person, School, Search, Settings, } from "@mui/icons-material";
 import toast from "react-hot-toast";
+import { jwtDecode } from "jwt-decode";
 import api from "../services/axios";
 import useAuthStore from "../store/auth.store";
 import SidebarNav from "../components/dashboard/SidebarNav";
@@ -76,6 +77,7 @@ export default function AdminDashboardPage() {
     const [editingRoom, setEditingRoom] = useState(null);
     const [roomEditDialogOpen, setRoomEditDialogOpen] = useState(false);
     const [updatingRoom, setUpdatingRoom] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
     const [groupDialogOpen, setGroupDialogOpen] = useState(false);
     const [creatingGroup, setCreatingGroup] = useState(false);
     const [employeesData, setEmployeesData] = useState([]);
@@ -119,6 +121,18 @@ export default function AdminDashboardPage() {
         isActive: true,
     });
 
+    const currentUserId = useMemo(() => {
+        const token = localStorage.getItem("accessToken");
+        if (!token) return null;
+
+        try {
+            const decoded = jwtDecode(token);
+            return decoded?.sub ?? null;
+        } catch {
+            return null;
+        }
+    }, []);
+
     const handleSidebarSelect = (label) => {
         setActiveItem(label);
     };
@@ -140,12 +154,11 @@ export default function AdminDashboardPage() {
                 api.get("/courses"),
                 api.get("/groups"),
                 api.get("/rooms"),
-                api.get("/purchased-courses"),
                 api.get("/homework-submissions"),
                 api.get("/auth/users"),
             ]);
 
-            const [coursesRes, groupsRes, roomsRes, paymentsRes, submissionsRes, usersRes] = results;
+            const [coursesRes, groupsRes, roomsRes, submissionsRes, usersRes] = results;
 
             const hadError = results.some((result) => result.status === "rejected");
             if (hadError) {
@@ -157,30 +170,24 @@ export default function AdminDashboardPage() {
             const groups =
                 groupsRes.status === "fulfilled" ? toArray(groupsRes.value.data) : [];
             const rooms = roomsRes.status === "fulfilled" ? toArray(roomsRes.value.data) : [];
-            const payments =
-                paymentsRes.status === "fulfilled" ? toArray(paymentsRes.value.data) : [];
             const submissions =
                 submissionsRes.status === "fulfilled"
                     ? toArray(submissionsRes.value.data)
                     : [];
             const users = usersRes.status === "fulfilled" ? toArray(usersRes.value.data) : [];
+            const me = users.find((user) => user.id === currentUserId) || null;
 
-            const uniqueStudents = new Set(
-                payments
-                    .map((payment) => payment.userId ?? payment.user?.id)
-                    .filter(Boolean),
-            );
-
-            const activeGroups = groups.filter((group) => group.status === "ACTIVE").length;
+            const activeGroupsList = groups.filter((group) => group.status === "ACTIVE");
+            const activeStudentsCount = users.filter((user) => user.role === "STUDENT" && user.isActive === true).length;
             const debtorsCount = submissions.filter(
                 (submission) => submission.status === "PENDING",
             ).length;
-            const frozenCount = rooms.filter((room) => room.isActive === false).length;
-            const archivedCount = courses.filter((course) => course.published === false).length;
+            const frozenCount = groups.filter((group) => group.status === "FREEZE").length;
+            const archivedCount = groups.filter((group) => group.status === "INACTIVE").length;
 
             setStats({
-                activeStudents: uniqueStudents.size,
-                groups: activeGroups || groups.length,
+                activeStudents: activeStudentsCount,
+                groups: activeGroupsList.length,
                 debtors: debtorsCount,
                 frozen: frozenCount,
                 archived: archivedCount,
@@ -190,6 +197,7 @@ export default function AdminDashboardPage() {
             setRoomsData(rooms.slice(0, 10));
             setGroupsData(groups);
             setEmployeesData(users.filter((user) => user.role !== "MENTOR" && user.role !== "STUDENT"));
+            setCurrentUser(me);
 
             setUpcomingGroups(
                 groups
@@ -559,8 +567,11 @@ export default function AdminDashboardPage() {
                         <IconButton sx={{ bgcolor: "#fff" }}>
                             <MailOutline fontSize="small" />
                         </IconButton>
-                        <Avatar sx={{ width: 34, height: 34, bgcolor: "#1f2937", fontSize: 13 }}>
-                            AB
+                        <Avatar
+                            src={currentUser?.image ? `${api.defaults.baseURL}${currentUser.image}` : undefined}
+                            sx={{ width: 34, height: 34, bgcolor: "#1f2937", fontSize: 13 }}
+                        >
+                            {currentUser?.fullName?.slice(0, 1)?.toUpperCase() || "A"}
                         </Avatar>
                         <Chip
                             label="Chiqish"

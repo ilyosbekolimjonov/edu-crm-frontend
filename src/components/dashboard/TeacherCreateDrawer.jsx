@@ -8,6 +8,7 @@ import {
     TextField,
     Typography,
 } from "@mui/material";
+import { UploadFileOutlined } from "@mui/icons-material";
 import toast from "react-hot-toast";
 
 const initialForm = {
@@ -21,6 +22,7 @@ const initialForm = {
     telegram: "",
     linkedin: "",
     courseIds: [],
+    imageFile: null,
 };
 
 export default function TeacherCreateDrawer({ open, onClose, onSubmit, availableCourses = [] }) {
@@ -112,6 +114,33 @@ export default function TeacherCreateDrawer({ open, onClose, onSubmit, available
                     onChange={handleChange("linkedin")}
                     fullWidth
                 />
+
+                <Box
+                    component="label"
+                    sx={{
+                        border: "1px dashed #b9bec8",
+                        borderRadius: 2,
+                        p: 2,
+                        textAlign: "center",
+                        cursor: "pointer",
+                        backgroundColor: "#fafbfc",
+                    }}
+                >
+                    <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(event) =>
+                            setForm((prev) => ({ ...prev, imageFile: event.target.files?.[0] || null }))
+                        }
+                    />
+                    <UploadFileOutlined sx={{ color: "#667085", mb: 0.5 }} />
+                    <Typography sx={{ fontSize: 13, color: "#344054" }}>Surat yuklash uchun bosing</Typography>
+                    <Typography sx={{ fontSize: 12, color: "#98a2b3" }}>
+                        {form.imageFile ? form.imageFile.name : "PNG/JPG/JPEG"}
+                    </Typography>
+                </Box>
+
                 <TextField
                     select
                     label="O'qitadigan kurslar"

@@ -26,3 +26,14 @@ export const deleteUserRequest = async (id) => {
     const { data } = await api.delete(`/auth/users/${id}`);
     return data;
 };
+
+export const uploadUserImageRequest = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const { data } = await api.post("/auth/upload-image", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    return data;
+};

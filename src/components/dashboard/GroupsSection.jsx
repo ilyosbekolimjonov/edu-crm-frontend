@@ -277,7 +277,7 @@ export default function GroupsSection() {
     };
 
     const handleCreate = async () => {
-        if ( !form.name || !form.courseId || !form.mentorId || !form.roomId || !form.startDate || !form.startTime || !form.durationMinutes || form.weekDays.length === 0 ) {
+        if (!form.name || !form.courseId || !form.mentorId || !form.roomId || !form.startDate || !form.startTime || !form.durationMinutes || form.weekDays.length === 0) {
             toast.error("Majburiy maydonlarni to'ldiring");
             return;
         }
@@ -452,6 +452,11 @@ export default function GroupsSection() {
         return activeWeekDays.has(date.getDay());
     };
 
+    const lessonDaysInMonth = useMemo(() => {
+        const totalDays = attendancePayload?.daysInMonth || 0;
+        return Array.from({ length: totalDays }, (_, i) => i + 1).filter((day) => isLessonDay(day));
+    }, [attendancePayload, viewMonth, activeWeekDays]);
+
     const setAttendance = async (userId, day) => {
         if (!selectedGroup || !isLessonDay(day)) return;
         const keyDate = dateKey(viewMonth, day);
@@ -492,14 +497,22 @@ export default function GroupsSection() {
 
     const groupStats = useMemo(() => {
         const mentorSet = new Set();
+        const activeStudentIds = new Set();
+
         visibleGroups.forEach((group) => {
             if (group.mentor?.id) mentorSet.add(group.mentor.id);
+
+            group.studentGroups?.forEach((sg) => {
+                if (sg.user?.role === "STUDENT" && sg.user?.isActive === true && sg.user?.id) {
+                    activeStudentIds.add(sg.user.id);
+                }
+            });
         });
-        const studentTotal = visibleGroups.reduce((sum, group) => sum + (group._count?.studentGroups ?? 0), 0);
+
         return {
             totalGroups: visibleGroups.length,
             totalMentors: mentorSet.size,
-            totalStudents: studentTotal,
+            totalStudents: activeStudentIds.size,
         };
     }, [visibleGroups]);
 
@@ -525,7 +538,7 @@ export default function GroupsSection() {
 
     const exportAttendance = () => {
         if (!attendancePayload) return;
-        const days = Array.from({ length: attendancePayload.daysInMonth || 0 }, (_, i) => i + 1).filter((day) => isLessonDay(day));
+        const days = lessonDaysInMonth;
         const headers = ["Student", ...days.map((day) => `${viewMonth}-${String(day).padStart(2, "0")}`)];
         const rows = filteredAttendanceStudents.map((student) => {
             const values = days.map((day) => {
@@ -734,7 +747,13 @@ export default function GroupsSection() {
                                                 <TableCell>{new Date(group.createdAt).toLocaleDateString()}</TableCell>
                                                 <TableCell>{group.room?.name || "-"}</TableCell>
                                                 <TableCell>{(group.mentorAssignments?.length || 0) > 0 ? group.mentorAssignments.map((item) => item.mentor?.fullName).filter(Boolean).join(", ") : (group.mentor?.fullName || "-")}</TableCell>
-                                                <TableCell>{group._count?.studentGroups ?? 0}</TableCell>
+                                                <TableCell>
+                                                    {
+                                                        group.studentGroups?.filter(
+                                                            (sg) => sg.user?.role === "STUDENT" && sg.user?.isActive === true,
+                                                        ).length || 0
+                                                    }
+                                                </TableCell>
                                                 <TableCell align="right">
                                                     <IconButton size="small" onClick={() => openView(group)}><VisibilityOutlined fontSize="small" /></IconButton>
                                                     <IconButton size="small" onClick={() => openEdit(group)}><EditOutlined fontSize="small" /></IconButton>
@@ -999,118 +1018,118 @@ export default function GroupsSection() {
                         </Paper>
                     ) : (
                         <Stack direction={{ xs: "column", lg: "row" }} spacing={2} sx={{ minWidth: 0 }}>
-                        <Paper elevation={0} sx={{ p: 1.5, border: "1px solid #edf0f5", borderRadius: 2, minWidth: 280 }}>
-                            <Typography sx={{ fontWeight: 700, mb: 1 }}>Ma'lumotlar</Typography>
-                            <Typography sx={{ fontSize: 13 }}>Kurs: {selectedGroup.course?.name || "-"}</Typography>
-                            <Typography sx={{ fontSize: 13 }}>Kurs narxi: {selectedGroup.course?.price || "-"}</Typography>
-                            <Typography sx={{ fontSize: 13 }}>Dars kunlari: {(selectedGroup.weekDays || []).join(", ")}</Typography>
-                            <Typography sx={{ fontSize: 13 }}>Dars vaqti: {selectedGroup.startTime || "-"}</Typography>
-                            <Typography sx={{ fontSize: 13, mb: 1 }}>Davomiylik: {selectedGroup.durationMinutes || 0} min</Typography>
+                            <Paper elevation={0} sx={{ p: 1.5, border: "1px solid #edf0f5", borderRadius: 2, minWidth: 280 }}>
+                                <Typography sx={{ fontWeight: 700, mb: 1 }}>Ma'lumotlar</Typography>
+                                <Typography sx={{ fontSize: 13 }}>Kurs: {selectedGroup.course?.name || "-"}</Typography>
+                                <Typography sx={{ fontSize: 13 }}>Kurs narxi: {selectedGroup.course?.price || "-"}</Typography>
+                                <Typography sx={{ fontSize: 13 }}>Dars kunlari: {(selectedGroup.weekDays || []).join(", ")}</Typography>
+                                <Typography sx={{ fontSize: 13 }}>Dars vaqti: {selectedGroup.startTime || "-"}</Typography>
+                                <Typography sx={{ fontSize: 13, mb: 1 }}>Davomiylik: {selectedGroup.durationMinutes || 0} min</Typography>
 
-                            <Typography sx={{ fontWeight: 700, mt: 1 }}>O'qituvchilar</Typography>
-                            {(selectedGroup.mentorAssignments || []).map((item) => (
-                                <Typography key={item.mentorId} sx={{ fontSize: 12, color: "#4b5563" }}>{item.mentor?.fullName}</Typography>
-                            ))}
+                                <Typography sx={{ fontWeight: 700, mt: 1 }}>O'qituvchilar</Typography>
+                                {(selectedGroup.mentorAssignments || []).map((item) => (
+                                    <Typography key={item.mentorId} sx={{ fontSize: 12, color: "#4b5563" }}>{item.mentor?.fullName}</Typography>
+                                ))}
 
-                            <Typography sx={{ fontWeight: 700, mt: 1 }}>Talabalar</Typography>
-                            {(selectedGroup.studentGroups || []).map((item) => (
-                                <Typography key={item.userId} sx={{ fontSize: 12, color: "#4b5563" }}>{item.user?.fullName}</Typography>
-                            ))}
-                        </Paper>
+                                <Typography sx={{ fontWeight: 700, mt: 1 }}>Talabalar</Typography>
+                                {(selectedGroup.studentGroups || []).map((item) => (
+                                    <Typography key={item.userId} sx={{ fontSize: 12, color: "#4b5563" }}>{item.user?.fullName}</Typography>
+                                ))}
+                            </Paper>
 
-                        <Box sx={{ flex: "1 1 0", width: 0, minWidth: 0 }}>
-                            <Stack direction={{ xs: "column", md: "row" }} alignItems={{ xs: "flex-start", md: "center" }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography sx={{ fontWeight: 700 }}>Davomat</Typography>
-                                    <Button size="small" onClick={() => {
-                                        const [y, m] = viewMonth.split("-").map(Number);
-                                        setViewMonth(monthToString(new Date(y, m - 2, 1)));
-                                    }}>{"<"}</Button>
-                                    <Typography sx={{ fontSize: 13 }}>{viewMonth}</Typography>
-                                    <Button size="small" onClick={() => {
-                                        const [y, m] = viewMonth.split("-").map(Number);
-                                        setViewMonth(monthToString(new Date(y, m, 1)));
-                                    }}>{">"}</Button>
-                                </Stack>
+                            <Box sx={{ flex: "1 1 0", width: 0, minWidth: 0 }}>
+                                <Stack direction={{ xs: "column", md: "row" }} alignItems={{ xs: "flex-start", md: "center" }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Typography sx={{ fontWeight: 700 }}>Davomat</Typography>
+                                        <Button size="small" onClick={() => {
+                                            const [y, m] = viewMonth.split("-").map(Number);
+                                            setViewMonth(monthToString(new Date(y, m - 2, 1)));
+                                        }}>{"<"}</Button>
+                                        <Typography sx={{ fontSize: 13 }}>{viewMonth}</Typography>
+                                        <Button size="small" onClick={() => {
+                                            const [y, m] = viewMonth.split("-").map(Number);
+                                            setViewMonth(monthToString(new Date(y, m, 1)));
+                                        }}>{">"}</Button>
+                                    </Stack>
 
-                                <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
-                                    sx={{
-                                        flexWrap: "wrap",
-                                        justifyContent: { xs: "flex-start", md: "flex-end" },
-                                        width: "100%",
-                                    }}
-                                >
-                                    <TextField size="small" placeholder="Student qidirish" value={attendanceNameFilter} onChange={(e) => setAttendanceNameFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 220 } }} />
-                                    <TextField size="small" select value={attendanceDayFilter} onChange={(e) => setAttendanceDayFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 96 } }}>
-                                        <MenuItem value="">Kun</MenuItem>
-                                        {Array.from({ length: attendancePayload?.daysInMonth || 0 }, (_, i) => i + 1).map((day) => (
-                                            <MenuItem key={day} value={String(day)}>{day}</MenuItem>
-                                        ))}
-                                    </TextField>
-                                    <TextField size="small" select value={attendanceStatusFilter} onChange={(e) => setAttendanceStatusFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 128 } }}>
-                                        <MenuItem value="ALL">Barchasi</MenuItem>
-                                        <MenuItem value="PRESENT">Bor</MenuItem>
-                                        <MenuItem value="ABSENT">Yo'q</MenuItem>
-                                        <MenuItem value="NONE">Belgilanmagan</MenuItem>
-                                    </TextField>
-                                    <Button size="small" startIcon={<FileDownloadOutlined fontSize="small" />} onClick={exportAttendance}>
-                                        Export
-                                    </Button>
-                                </Stack>
-                            </Stack>
-
-                            <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto", overflowY: "hidden", border: "1px solid #edf0f5", borderRadius: 2 }}>
-                                <Table size="small" sx={{ minWidth: `${220 + ((attendancePayload?.daysInMonth || 31) * 54)}px` }}>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Nomi</TableCell>
-                                            {Array.from({ length: attendancePayload?.daysInMonth || 0 }, (_, i) => i + 1).map((day) => (
-                                                <TableCell key={day} align="center">{day}</TableCell>
+                                    <Stack
+                                        direction="row"
+                                        spacing={1}
+                                        alignItems="center"
+                                        sx={{
+                                            flexWrap: "wrap",
+                                            justifyContent: { xs: "flex-start", md: "flex-end" },
+                                            width: "100%",
+                                        }}
+                                    >
+                                        <TextField size="small" placeholder="Student qidirish" value={attendanceNameFilter} onChange={(e) => setAttendanceNameFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 220 } }} />
+                                        <TextField size="small" select value={attendanceDayFilter} onChange={(e) => setAttendanceDayFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 96 } }}>
+                                            <MenuItem value="">Kun</MenuItem>
+                                            {lessonDaysInMonth.map((day) => (
+                                                <MenuItem key={day} value={String(day)}>{day}</MenuItem>
                                             ))}
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {filteredAttendanceStudents.map((student) => (
-                                            <TableRow key={student.id}>
-                                                <TableCell>{student.fullName}</TableCell>
-                                                {Array.from({ length: attendancePayload?.daysInMonth || 0 }, (_, i) => i + 1).map((day) => {
-                                                    const activeDay = isLessonDay(day);
-                                                    const value = attendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
-                                                    return (
-                                                        <TableCell key={day} align="center" sx={{ py: 0.5, px: 0.5 }}>
-                                                            <Chip
-                                                                size="small"
-                                                                label={!activeDay ? "-" : value === true ? "Bor" : value === false ? "Yo'q" : "-"}
-                                                                color={!activeDay ? "default" : value === true ? "success" : value === false ? "error" : "default"}
-                                                                variant={!activeDay || value === undefined ? "outlined" : "filled"}
-                                                                onClick={() => setAttendance(student.id, day)}
-                                                                clickable={activeDay}
-                                                                sx={{ minWidth: 44 }}
-                                                            />
-                                                            {activeDay && value !== undefined ? (
-                                                                <IconButton
-                                                                    size="small"
-                                                                    sx={{ ml: 0.25, p: 0.25, verticalAlign: "middle" }}
-                                                                    onClick={(event) => {
-                                                                        event.stopPropagation();
-                                                                        clearAttendance(student.id, day);
-                                                                    }}
-                                                                >
-                                                                    <Clear sx={{ fontSize: 12 }} />
-                                                                </IconButton>
-                                                            ) : null}
-                                                        </TableCell>
-                                                    );
-                                                })}
+                                        </TextField>
+                                        <TextField size="small" select value={attendanceStatusFilter} onChange={(e) => setAttendanceStatusFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 128 } }}>
+                                            <MenuItem value="ALL">Barchasi</MenuItem>
+                                            <MenuItem value="PRESENT">Bor</MenuItem>
+                                            <MenuItem value="ABSENT">Yo'q</MenuItem>
+                                            <MenuItem value="NONE">Belgilanmagan</MenuItem>
+                                        </TextField>
+                                        <Button size="small" startIcon={<FileDownloadOutlined fontSize="small" />} onClick={exportAttendance}>
+                                            Export
+                                        </Button>
+                                    </Stack>
+                                </Stack>
+
+                                <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto", overflowY: "hidden", border: "1px solid #edf0f5", borderRadius: 2 }}>
+                                    <Table size="small" sx={{ minWidth: `${220 + (lessonDaysInMonth.length * 54)}px` }}>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Nomi</TableCell>
+                                                {lessonDaysInMonth.map((day) => (
+                                                    <TableCell key={day} align="center">{day}</TableCell>
+                                                ))}
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHead>
+                                        <TableBody>
+                                            {filteredAttendanceStudents.map((student) => (
+                                                <TableRow key={student.id}>
+                                                    <TableCell>{student.fullName}</TableCell>
+                                                    {lessonDaysInMonth.map((day) => {
+                                                        const activeDay = isLessonDay(day);
+                                                        const value = attendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
+                                                        return (
+                                                            <TableCell key={day} align="center" sx={{ py: 0.5, px: 0.5 }}>
+                                                                <Chip
+                                                                    size="small"
+                                                                    label={!activeDay ? "-" : value === true ? "Bor" : value === false ? "Yo'q" : "-"}
+                                                                    color={!activeDay ? "default" : value === true ? "success" : value === false ? "error" : "default"}
+                                                                    variant={!activeDay || value === undefined ? "outlined" : "filled"}
+                                                                    onClick={() => setAttendance(student.id, day)}
+                                                                    clickable={activeDay}
+                                                                    sx={{ minWidth: 44 }}
+                                                                />
+                                                                {activeDay && value !== undefined ? (
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        sx={{ ml: 0.25, p: 0.25, verticalAlign: "middle" }}
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            clearAttendance(student.id, day);
+                                                                        }}
+                                                                    >
+                                                                        <Clear sx={{ fontSize: 12 }} />
+                                                                    </IconButton>
+                                                                ) : null}
+                                                            </TableCell>
+                                                        );
+                                                    })}
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </Box>
                             </Box>
-                        </Box>
                         </Stack>
                     )}
                 </Paper>
