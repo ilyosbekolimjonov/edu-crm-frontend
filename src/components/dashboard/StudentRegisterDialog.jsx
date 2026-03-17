@@ -1,24 +1,9 @@
 import { useState } from "react";
-import {
-    Button,
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-    MenuItem,
-    Stack,
-    TextField,
-} from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, } from "@mui/material";
+import { UploadFileOutlined } from "@mui/icons-material";
 import toast from "react-hot-toast";
 
-const initialForm = {
-    fullName: "",
-    username: "",
-    email: "",
-    phone: "",
-    password: "",
-    gender: "Erkak",
-};
+const initialForm = { fullName: "", username: "", email: "", phone: "", password: "", gender: "Erkak", imageFile: null, };
 
 export default function StudentRegisterDialog({ open, onClose, onSubmit }) {
     const [form, setForm] = useState(initialForm);
@@ -104,6 +89,34 @@ export default function StudentRegisterDialog({ open, onClose, onSubmit }) {
                         <MenuItem value="Erkak">Erkak</MenuItem>
                         <MenuItem value="Ayol">Ayol</MenuItem>
                     </TextField>
+
+                        <Box
+                            component="label"
+                            sx={{
+                                border: "1px dashed #b9bec8",
+                                borderRadius: 2,
+                                p: 2,
+                                textAlign: "center",
+                                cursor: "pointer",
+                                backgroundColor: "#fafbfc",
+                            }}
+                        >
+                            <input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                onChange={(event) =>
+                                    setForm((prev) => ({ ...prev, imageFile: event.target.files?.[0] || null }))
+                                }
+                            />
+                            <UploadFileOutlined sx={{ color: "#667085", mb: 0.5 }} />
+                            <Stack spacing={0.3} alignItems="center">
+                                <Box sx={{ fontSize: 13, color: "#344054" }}>Surat yuklash uchun bosing</Box>
+                                <Box sx={{ fontSize: 12, color: "#98a2b3" }}>
+                                    {form.imageFile ? form.imageFile.name : "PNG/JPG/JPEG"}
+                                </Box>
+                            </Stack>
+                        </Box>
                 </Stack>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+    Avatar,
     Button,
     CircularProgress,
     Dialog,
@@ -23,8 +24,10 @@ import {
     deleteUserRequest,
     getUsersRequest,
     registerStudentRequest,
+    uploadUserImageRequest,
     updateUserRequest,
 } from "../../services/auth.service";
+import api from "../../services/axios";
 import StudentRegisterDialog from "./StudentRegisterDialog";
 
 const initialEditForm = {
@@ -62,6 +65,12 @@ export default function StudentsSection() {
     }, []);
 
     const handleRegister = async (form) => {
+        let image;
+        if (form.imageFile) {
+            const uploaded = await uploadUserImageRequest(form.imageFile);
+            image = uploaded?.imageUrl;
+        }
+
         const payload = {
             fullName: form.fullName,
             username: form.username,
@@ -69,6 +78,7 @@ export default function StudentsSection() {
             phone: form.phone,
             password: form.password,
             role: "STUDENT",
+            image,
         };
 
         try {
@@ -191,7 +201,17 @@ export default function StudentsSection() {
                         students.map((student, index) => (
                             <TableRow key={student.id}>
                                 <TableCell>{index + 1}</TableCell>
-                                <TableCell>{student.fullName}</TableCell>
+                                <TableCell>
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Avatar
+                                            src={student.image ? `${api.defaults.baseURL}${student.image}` : undefined}
+                                            sx={{ width: 28, height: 28, fontSize: 12 }}
+                                        >
+                                            {student.fullName?.[0] || "S"}
+                                        </Avatar>
+                                        <Typography>{student.fullName}</Typography>
+                                    </Stack>
+                                </TableCell>
                                 <TableCell>{student.username}</TableCell>
                                 <TableCell>{student.phone}</TableCell>
                                 <TableCell>{student.email}</TableCell>
