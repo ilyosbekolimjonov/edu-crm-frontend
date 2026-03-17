@@ -16,3 +16,13 @@ export const getUsersRequest = async (role) => {
     });
     return data;
 };
+
+export const updateUserRequest = async (id, payload) => {
+    const { data } = await api.patch(`/auth/users/${id}`, payload);
+    return data;
+};
+
+export const deleteUserRequest = async (id) => {
+    const { data } = await api.delete(`/auth/users/${id}`);
+    return data;
+};
