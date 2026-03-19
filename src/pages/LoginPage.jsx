@@ -53,7 +53,7 @@ export default function LoginPage() {
             }, 700);
         } catch (error) {
             const message =
-                error?.response?.data?.message || "Login yoki parol noto‘g‘ri";
+                error?.response?.data?.message || "Login yoki parol noto'g'ri";
 
             toast.error(Array.isArray(message) ? message[0] : message);
         }
