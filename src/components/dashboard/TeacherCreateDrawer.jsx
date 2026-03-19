@@ -29,6 +29,18 @@ export default function TeacherCreateDrawer({ open, onClose, onSubmit, available
     const [form, setForm] = useState(initialForm);
     const [submitting, setSubmitting] = useState(false);
 
+    const handleImageChange = (event) => {
+        const files = Array.from(event.target.files || []);
+
+        if (files.length > 1) {
+            toast.error("Faqat bitta rasm tanlash mumkin");
+            event.target.value = "";
+            return;
+        }
+
+        setForm((prev) => ({ ...prev, imageFile: files[0] || null }));
+    };
+
     const handleChange = (field) => (event) => {
         setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
@@ -130,9 +142,8 @@ export default function TeacherCreateDrawer({ open, onClose, onSubmit, available
                         type="file"
                         accept="image/*"
                         hidden
-                        onChange={(event) =>
-                            setForm((prev) => ({ ...prev, imageFile: event.target.files?.[0] || null }))
-                        }
+                        multiple={false}
+                        onChange={handleImageChange}
                     />
                     <UploadFileOutlined sx={{ color: "#667085", mb: 0.5 }} />
                     <Typography sx={{ fontSize: 13, color: "#344054" }}>Surat yuklash uchun bosing</Typography>

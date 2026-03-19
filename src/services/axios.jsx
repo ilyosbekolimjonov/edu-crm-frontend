@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const api = axios.create({
     baseURL: BASE_URL,
@@ -29,7 +29,12 @@ const forceLogout = () => {
 };
 
 const onRefreshed = (token) => {
-    refreshSubscribers.forEach((callback) => callback(token));
+    refreshSubscribers.forEach(({ resolve }) => resolve(token));
+    refreshSubscribers = [];
+};
+
+const onRefreshFailed = (error) => {
+    refreshSubscribers.forEach(({ reject }) => reject(error));
     refreshSubscribers = [];
 };
 
@@ -61,10 +66,13 @@ api.interceptors.response.use(
         }
 
         if (isRefreshing) {
-            return new Promise((resolve) => {
-                refreshSubscribers.push((token) => {
-                    originalRequest.headers.Authorization = `Bearer ${token}`;
-                    resolve(api(originalRequest));
+            return new Promise((resolve, reject) => {
+                refreshSubscribers.push({
+                    resolve: (token) => {
+                        originalRequest.headers.Authorization = `Bearer ${token}`;
+                        resolve(api(originalRequest));
+                    },
+                    reject,
                 });
             });
         }
@@ -91,6 +99,7 @@ api.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
             return api(originalRequest);
         } catch (refreshError) {
+            onRefreshFailed(refreshError);
             forceLogout();
             return Promise.reject(refreshError);
         } finally {

@@ -25,6 +25,18 @@ export default function EmployeesManagementSection() {
     const [form, setForm] = useState(initialForm);
     const [createForm, setCreateForm] = useState({ ...initialForm, imageFile: null });
 
+    const handleCreateImageChange = (event) => {
+        const files = Array.from(event.target.files || []);
+
+        if (files.length > 1) {
+            toast.error("Faqat bitta rasm tanlash mumkin");
+            event.target.value = "";
+            return;
+        }
+
+        setCreateForm((prev) => ({ ...prev, imageFile: files[0] || null }));
+    };
+
     const loadEmployees = async () => {
         setLoading(true);
         try {
@@ -125,7 +137,7 @@ export default function EmployeesManagementSection() {
     };
 
     const handleDelete = async (employee) => {
-        const confirmed = window.confirm(`\"${employee.fullName}\" ni o'chirmoqchimisiz?`);
+        const confirmed = window.confirm(`"${employee.fullName}" ni o'chirmoqchimisiz?`);
         if (!confirmed) return;
 
         try {
@@ -239,7 +251,8 @@ export default function EmployeesManagementSection() {
                                 type="file"
                                 accept="image/*"
                                 hidden
-                                onChange={(event) => setCreateForm((prev) => ({ ...prev, imageFile: event.target.files?.[0] || null }))}
+                                multiple={false}
+                                onChange={handleCreateImageChange}
                             />
                             <UploadFileOutlined sx={{ color: "#667085", mb: 0.5 }} />
                             <Typography sx={{ fontSize: 13, color: "#344054" }}>Surat yuklash uchun bosing</Typography>

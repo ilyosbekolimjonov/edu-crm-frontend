@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, } from "@mui/material";
 import { ArrowBack, Clear, DeleteOutline, EditOutlined, FileDownloadOutlined, VisibilityOutlined, } from "@mui/icons-material";
 import { AssignmentTurnedInOutlined, SmartDisplayOutlined, UploadFileOutlined } from "@mui/icons-material";
@@ -384,7 +384,7 @@ export default function GroupsSection() {
     };
 
     const handleDelete = async (group) => {
-        const confirmed = window.confirm(`\"${group.name}\" guruhini o'chirmoqchimisiz?`);
+        const confirmed = window.confirm(`"${group.name}" guruhini o'chirmoqchimisiz?`);
         if (!confirmed) return;
         try {
             await api.delete(`/groups/${group.id}`);
@@ -446,16 +446,16 @@ export default function GroupsSection() {
         [attendancePayload],
     );
 
-    const isLessonDay = (day) => {
+    const isLessonDay = useCallback((day) => {
         const [year, month] = viewMonth.split("-").map(Number);
         const date = new Date(year, month - 1, day);
         return activeWeekDays.has(date.getDay());
-    };
+    }, [activeWeekDays, viewMonth]);
 
     const lessonDaysInMonth = useMemo(() => {
         const totalDays = attendancePayload?.daysInMonth || 0;
         return Array.from({ length: totalDays }, (_, i) => i + 1).filter((day) => isLessonDay(day));
-    }, [attendancePayload, viewMonth, activeWeekDays]);
+    }, [attendancePayload, isLessonDay]);
 
     const setAttendance = async (userId, day) => {
         if (!selectedGroup || !isLessonDay(day)) return;
@@ -534,7 +534,7 @@ export default function GroupsSection() {
             if (attendanceStatusFilter === "NONE") return value === undefined;
             return true;
         });
-    }, [attendancePayload, attendanceNameFilter, attendanceDayFilter, attendanceStatusFilter, attendanceMap, viewMonth, activeWeekDays]);
+    }, [attendancePayload, attendanceNameFilter, attendanceDayFilter, attendanceStatusFilter, attendanceMap, viewMonth, isLessonDay]);
 
     const exportAttendance = () => {
         if (!attendancePayload) return;

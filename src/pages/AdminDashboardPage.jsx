@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Accordion, AccordionDetails, AccordionSummary, Avatar, Button, Box, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, MenuItem, Paper, Select, Stack, TextField, Typography, } from "@mui/material";
 import { AutoGraph, Book, CalendarMonth, DarkMode, DeleteOutline, DiamondOutlined, EditOutlined, ExpandMore, Groups, Home, Inventory2, MailOutline, MonetizationOn, NotificationsNone, Person, School, Search, Settings, } from "@mui/icons-material";
@@ -62,7 +62,6 @@ export default function AdminDashboardPage() {
         archived: 0,
     });
     const [coursesData, setCoursesData] = useState([]);
-    const [groupsData, setGroupsData] = useState([]);
     const [mentorsData, setMentorsData] = useState([]);
     const [roomsData, setRoomsData] = useState([]);
     const [upcomingGroups, setUpcomingGroups] = useState([]);
@@ -80,7 +79,6 @@ export default function AdminDashboardPage() {
     const [currentUser, setCurrentUser] = useState(null);
     const [groupDialogOpen, setGroupDialogOpen] = useState(false);
     const [creatingGroup, setCreatingGroup] = useState(false);
-    const [employeesData, setEmployeesData] = useState([]);
     const [roomForm, setRoomForm] = useState({
         name: "",
         capacity: "",
@@ -146,7 +144,7 @@ export default function AdminDashboardPage() {
         localStorage.setItem(ACTIVE_ITEM_KEY, activeItem);
     }, [activeItem]);
 
-    const loadDashboardData = async () => {
+    const loadDashboardData = useCallback(async () => {
         setLoading(true);
 
         try {
@@ -195,8 +193,6 @@ export default function AdminDashboardPage() {
 
             setCoursesData(courses.slice(0, 10));
             setRoomsData(rooms.slice(0, 10));
-            setGroupsData(groups);
-            setEmployeesData(users.filter((user) => user.role !== "MENTOR" && user.role !== "STUDENT"));
             setCurrentUser(me);
 
             setUpcomingGroups(
@@ -216,11 +212,11 @@ export default function AdminDashboardPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentUserId]);
 
     useEffect(() => {
         loadDashboardData();
-    }, []);
+    }, [loadDashboardData]);
 
     useEffect(() => {
         const loadMentors = async () => {
