@@ -10,13 +10,15 @@ import {
 } from "@mui/material";
 import { UploadFileOutlined } from "@mui/icons-material";
 import toast from "react-hot-toast";
+import PhoneInput from "../common/PhoneInput";
 
 const initialForm = {
     fullName: "",
     username: "",
     email: "",
-    phone: "",
+    phone: "+998",
     password: "",
+    confirmPassword: "",
     about: "",
     experience: "0",
     telegram: "",
@@ -54,8 +56,16 @@ export default function TeacherCreateDrawer({ open, onClose, onSubmit, available
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        if (!form.fullName || !form.username || !form.email || !form.phone || !form.password) {
+        if (!form.fullName || !form.username || !form.email || !form.phone || !form.password || !form.confirmPassword) {
             toast.error("Barcha majburiy maydonlarni to'ldiring");
+            return;
+        }
+        if (!/^\+998\d{9}$/.test(form.phone)) {
+            toast.error("Telefon +998XXXXXXXXX formatida bo'lishi kerak");
+            return;
+        }
+        if (form.password !== form.confirmPassword) {
+            toast.error("Parollar mos emas");
             return;
         }
 
@@ -90,11 +100,12 @@ export default function TeacherCreateDrawer({ open, onClose, onSubmit, available
                     </Typography>
                 </Box>
 
-                <TextField label="Telefon raqam" value={form.phone} onChange={handleChange("phone")} required fullWidth />
+                <PhoneInput value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} required />
                 <TextField label="Mail" type="email" value={form.email} onChange={handleChange("email")} required fullWidth />
                 <TextField label="O'qituvchi FIO" value={form.fullName} onChange={handleChange("fullName")} required fullWidth />
                 <TextField label="Username" value={form.username} onChange={handleChange("username")} required fullWidth />
                 <TextField label="Parol" type="password" value={form.password} onChange={handleChange("password")} required fullWidth />
+                <TextField label="Parolni tasdiqlang" type="password" value={form.confirmPassword} onChange={handleChange("confirmPassword")} required fullWidth />
                 <TextField
                     label="About"
                     placeholder="O'qituvchi haqida qisqacha"

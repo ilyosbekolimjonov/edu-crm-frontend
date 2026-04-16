@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, } from "@mui/material";
 import { UploadFileOutlined } from "@mui/icons-material";
 import toast from "react-hot-toast";
+import PhoneInput from "../common/PhoneInput";
 
-const initialForm = { fullName: "", username: "", email: "", phone: "", password: "", gender: "Erkak", imageFile: null, };
+const initialForm = { fullName: "", username: "", email: "", phone: "+998", password: "", confirmPassword: "", gender: "Erkak", imageFile: null, };
 
 export default function StudentRegisterDialog({ open, onClose, onSubmit }) {
     const [form, setForm] = useState(initialForm);
@@ -34,8 +35,16 @@ export default function StudentRegisterDialog({ open, onClose, onSubmit }) {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        if (!form.fullName || !form.username || !form.email || !form.phone || !form.password) {
+        if (!form.fullName || !form.username || !form.email || !form.phone || !form.password || !form.confirmPassword) {
             toast.error("Barcha majburiy maydonlarni to'ldiring");
+            return;
+        }
+        if (!/^\+998\d{9}$/.test(form.phone)) {
+            toast.error("Telefon +998XXXXXXXXX formatida bo'lishi kerak");
+            return;
+        }
+        if (form.password !== form.confirmPassword) {
+            toast.error("Parollar mos emas");
             return;
         }
 
@@ -76,18 +85,20 @@ export default function StudentRegisterDialog({ open, onClose, onSubmit }) {
                         required
                         fullWidth
                     />
-                    <TextField
-                        label="Telefon"
-                        value={form.phone}
-                        onChange={handleChange("phone")}
-                        required
-                        fullWidth
-                    />
+                    <PhoneInput value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} required />
                     <TextField
                         label="Parol"
                         type="password"
                         value={form.password}
                         onChange={handleChange("password")}
+                        required
+                        fullWidth
+                    />
+                    <TextField
+                        label="Parolni tasdiqlang"
+                        type="password"
+                        value={form.confirmPassword}
+                        onChange={handleChange("confirmPassword")}
                         required
                         fullWidth
                     />

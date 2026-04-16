@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, } from "@mui/material";
-import { ArrowBack, Clear, DeleteOutline, EditOutlined, FileDownloadOutlined, VisibilityOutlined, } from "@mui/icons-material";
-import { AssignmentTurnedInOutlined, SmartDisplayOutlined, UploadFileOutlined } from "@mui/icons-material";
+import { Box, Checkbox, FormControlLabel, FormGroup, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import toast from "react-hot-toast";
 import api from "../../services/axios";
+import useAuthStore from "../../store/auth.store";
+import GroupDetailPanel from "./groups/GroupDetailPanel";
+import GroupLessonDialogs from "./groups/GroupLessonDialogs";
+import GroupListPanel from "./groups/GroupListPanel";
+import GroupManagementDialogs from "./groups/GroupManagementDialogs";
 
 const DAY_OPTIONS = [
     { value: "MONDAY", label: "Dush" },
@@ -43,7 +46,7 @@ const GROUP_VIEW_TABS = [
     { value: "DARSLAR", label: "Darslar" },
 ];
 
-const LESSON_SUB_TABS = ["Uyga vazifa", "Videolar", "Imtihonlar", "Jurnal"];
+const LESSON_SUB_TABS = ["Uyga vazifa", "Videolar", "Vazifani tekshirish"];
 
 const monthToString = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 const dateKey = (yearMonth, day) => `${yearMonth}-${String(day).padStart(2, "0")}`;
@@ -63,6 +66,8 @@ function downloadCsv(filename, rows) {
 }
 
 export default function GroupsSection() {
+    const { role } = useAuthStore();
+    const canManageGroups = role === "ADMIN" || role === "SUPERADMIN";
     const [loading, setLoading] = useState(true);
     const [groups, setGroups] = useState([]);
     const [courses, setCourses] = useState([]);
@@ -82,6 +87,8 @@ export default function GroupsSection() {
     const [form, setForm] = useState(initialForm);
     const [viewMonth, setViewMonth] = useState(monthToString(new Date()));
     const [attendancePayload, setAttendancePayload] = useState(null);
+    const [pendingAttendanceChanges, setPendingAttendanceChanges] = useState({});
+    const [savingAttendance, setSavingAttendance] = useState(false);
     const [attendanceNameFilter, setAttendanceNameFilter] = useState("");
     const [attendanceDayFilter, setAttendanceDayFilter] = useState("");
     const [attendanceStatusFilter, setAttendanceStatusFilter] = useState("ALL");
@@ -95,6 +102,7 @@ export default function GroupsSection() {
     const [creatingLesson, setCreatingLesson] = useState(false);
     const [lessonCreateMode, setLessonCreateMode] = useState("CUSTOM");
     const [lessonName, setLessonName] = useState("");
+    const [lessonAbout, setLessonAbout] = useState("");
     const [videoDialogOpen, setVideoDialogOpen] = useState(false);
     const [videoListDialogOpen, setVideoListDialogOpen] = useState(false);
     const [videoTargetLesson, setVideoTargetLesson] = useState(null);
@@ -116,6 +124,16 @@ export default function GroupsSection() {
     const loadData = async () => {
         setLoading(true);
         try {
+            if (!canManageGroups) {
+                const { data } = await api.get("/groups");
+                setGroups(Array.isArray(data) ? data : []);
+                setCourses([]);
+                setRooms([]);
+                setMentors([]);
+                setStudents([]);
+                return;
+            }
+
             const [groupsRes, coursesRes, roomsRes, mentorsRes, studentsRes] = await Promise.all([
                 api.get("/groups"),
                 api.get("/courses"),
@@ -149,6 +167,7 @@ export default function GroupsSection() {
     const loadAttendance = async (groupId, month) => {
         const { data } = await api.get(`/groups/${groupId}/attendance`, { params: { month } });
         setAttendancePayload(data);
+        setPendingAttendanceChanges({});
     };
 
     const loadLessons = async (groupId) => {
@@ -176,11 +195,13 @@ export default function GroupsSection() {
         try {
             await api.post("/lessons", {
                 name: lessonName.trim(),
+                about: lessonAbout.trim() || undefined,
                 groupId: selectedGroup.id,
             });
             toast.success("Dars yaratildi");
             setLessonCreateOpen(false);
             setLessonName("");
+            setLessonAbout("");
             await loadLessons(selectedGroup.id);
         } catch (error) {
             const message = error?.response?.data?.message || "Dars yaratishda xatolik";
@@ -235,7 +256,7 @@ export default function GroupsSection() {
 
     const openHomeworkEditor = (lesson) => {
         setHomeworkEditorLesson(lesson);
-        setHomeworkTask("");
+        setHomeworkTask(lesson.homework?.task || "");
         setHomeworkUploadFile(null);
     };
 
@@ -258,12 +279,20 @@ export default function GroupsSection() {
                 fileUrl = uploadRes?.data?.fileUrl;
             }
 
-            await api.post("/homeworks", {
-                lessonId: homeworkEditorLesson.id,
-                task: homeworkTask.trim(),
-                file: fileUrl || undefined,
-            });
-            toast.success("Uyga vazifa biriktirildi");
+            if (homeworkEditorLesson.homework?.id) {
+                await api.patch(`/homeworks/${homeworkEditorLesson.homework.id}`, {
+                    task: homeworkTask.trim(),
+                    file: fileUrl || undefined,
+                });
+                toast.success("Uyga vazifa yangilandi");
+            } else {
+                await api.post("/homeworks", {
+                    lessonId: homeworkEditorLesson.id,
+                    task: homeworkTask.trim(),
+                    file: fileUrl || undefined,
+                });
+                toast.success("Uyga vazifa biriktirildi");
+            }
             setHomeworkEditorLesson(null);
             setHomeworkTask("");
             setHomeworkUploadFile(null);
@@ -392,6 +421,7 @@ export default function GroupsSection() {
             if (selectedGroup?.id === group.id) {
                 setSelectedGroup(null);
                 setAttendancePayload(null);
+                setPendingAttendanceChanges({});
                 setLessonsData([]);
                 setVideoListDialogOpen(false);
                 setVideoListLesson(null);
@@ -441,6 +471,21 @@ export default function GroupsSection() {
         return map;
     }, [attendancePayload]);
 
+    const effectiveAttendanceMap = useMemo(() => {
+        const map = new Map(attendanceMap);
+        Object.values(pendingAttendanceChanges).forEach((change) => {
+            const key = `${change.studentId}-${dateKey(viewMonth, change.day)}`;
+            if (change.present === null) {
+                map.delete(key);
+            } else {
+                map.set(key, change.present);
+            }
+        });
+        return map;
+    }, [attendanceMap, pendingAttendanceChanges, viewMonth]);
+
+    const hasPendingAttendanceChanges = Object.keys(pendingAttendanceChanges).length > 0;
+
     const activeWeekDays = useMemo(
         () => new Set((attendancePayload?.group?.weekDays || []).map((day) => WEEKDAY_TO_INDEX[day])),
         [attendancePayload],
@@ -457,35 +502,40 @@ export default function GroupsSection() {
         return Array.from({ length: totalDays }, (_, i) => i + 1).filter((day) => isLessonDay(day));
     }, [attendancePayload, isLessonDay]);
 
-    const setAttendance = async (userId, day) => {
+    const stageAttendance = (studentId, day, present) => {
         if (!selectedGroup || !isLessonDay(day)) return;
         const keyDate = dateKey(viewMonth, day);
-        const current = attendanceMap.get(`${userId}-${keyDate}`);
-        const next = current === true ? false : true;
+        const cellKey = `${studentId}-${keyDate}`;
+        const original = attendanceMap.has(cellKey) ? attendanceMap.get(cellKey) : null;
+        const current = effectiveAttendanceMap.has(cellKey) ? effectiveAttendanceMap.get(cellKey) : null;
+        const next = current === present ? null : present;
+
+        setPendingAttendanceChanges((prev) => {
+            const nextChanges = { ...prev };
+            if (next === original) {
+                delete nextChanges[cellKey];
+            } else {
+                nextChanges[cellKey] = { studentId, day, present: next };
+            }
+            return nextChanges;
+        });
+    };
+
+    const saveAttendanceChanges = async () => {
+        if (!selectedGroup || !hasPendingAttendanceChanges) return;
+        setSavingAttendance(true);
         try {
-            await api.patch(`/groups/${selectedGroup.id}/attendance`, {
-                userId,
-                date: keyDate,
-                present: next,
+            await api.patch(`/groups/${selectedGroup.id}/attendance/bulk`, {
+                month: viewMonth,
+                changes: Object.values(pendingAttendanceChanges),
             });
+            toast.success("Davomat saqlandi");
             await loadAttendance(selectedGroup.id, viewMonth);
         } catch (error) {
             const message = error?.response?.data?.message || "Davomatni saqlashda xatolik";
             toast.error(Array.isArray(message) ? message[0] : message);
-        }
-    };
-
-    const clearAttendance = async (userId, day) => {
-        if (!selectedGroup || !isLessonDay(day)) return;
-        const keyDate = dateKey(viewMonth, day);
-        try {
-            await api.delete(`/groups/${selectedGroup.id}/attendance`, {
-                params: { userId, date: keyDate },
-            });
-            await loadAttendance(selectedGroup.id, viewMonth);
-        } catch (error) {
-            const message = error?.response?.data?.message || "Davomatni o'chirishda xatolik";
-            toast.error(Array.isArray(message) ? message[0] : message);
+        } finally {
+            setSavingAttendance(false);
         }
     };
 
@@ -528,13 +578,13 @@ export default function GroupsSection() {
 
             if (!isLessonDay(day)) return attendanceStatusFilter === "NONE";
 
-            const value = attendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
+            const value = effectiveAttendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
             if (attendanceStatusFilter === "PRESENT") return value === true;
             if (attendanceStatusFilter === "ABSENT") return value === false;
             if (attendanceStatusFilter === "NONE") return value === undefined;
             return true;
         });
-    }, [attendancePayload, attendanceNameFilter, attendanceDayFilter, attendanceStatusFilter, attendanceMap, viewMonth, isLessonDay]);
+    }, [attendancePayload, attendanceNameFilter, attendanceDayFilter, attendanceStatusFilter, effectiveAttendanceMap, viewMonth, isLessonDay]);
 
     const exportAttendance = () => {
         if (!attendancePayload) return;
@@ -542,7 +592,7 @@ export default function GroupsSection() {
         const headers = ["Student", ...days.map((day) => `${viewMonth}-${String(day).padStart(2, "0")}`)];
         const rows = filteredAttendanceStudents.map((student) => {
             const values = days.map((day) => {
-                const status = attendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
+                const status = effectiveAttendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
                 return status === true ? "Bor" : status === false ? "Yo'q" : "-";
             });
             return [student.fullName, ...values];
@@ -667,684 +717,134 @@ export default function GroupsSection() {
     return (
         <Stack spacing={1.5}>
             {!selectedGroup ? (
-                <>
-                    <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
-                        <Chip
-                            size="small"
-                            clickable
-                            label="Faol guruhlar"
-                            onClick={() => setActiveTab("ACTIVE")}
-                            sx={{ bgcolor: activeTab === "ACTIVE" ? "#ede9fe" : "#ffffff", color: activeTab === "ACTIVE" ? "#6d3ee6" : "#4b5563" }}
-                        />
-                        <Chip
-                            size="small"
-                            clickable
-                            label="Arxiv"
-                            onClick={() => setActiveTab("ARCHIVED")}
-                            sx={{ bgcolor: activeTab === "ARCHIVED" ? "#ede9fe" : "#ffffff", color: activeTab === "ARCHIVED" ? "#6d3ee6" : "#4b5563" }}
-                        />
-                        <Chip
-                            size="small"
-                            clickable
-                            label="Barchasi"
-                            onClick={() => setActiveTab("ALL")}
-                            sx={{ bgcolor: activeTab === "ALL" ? "#ede9fe" : "#ffffff", color: activeTab === "ALL" ? "#6d3ee6" : "#4b5563" }}
-                        />
-                    </Stack>
-
-                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0,1fr))" }, gap: 1 }}>
-                        <Paper elevation={0} sx={{ p: 2, border: "1px solid #e9ecf2", borderRadius: 2 }}>
-                            <Typography sx={{ fontSize: 13, color: "#6b7280" }}>Jami guruhlar</Typography>
-                            <Typography sx={{ fontSize: 34, fontWeight: 700 }}>{groupStats.totalGroups}</Typography>
-                        </Paper>
-                        <Paper elevation={0} sx={{ p: 2, border: "1px solid #e9ecf2", borderRadius: 2 }}>
-                            <Typography sx={{ fontSize: 13, color: "#6b7280" }}>O'qituvchilar</Typography>
-                            <Typography sx={{ fontSize: 34, fontWeight: 700 }}>{groupStats.totalMentors}</Typography>
-                        </Paper>
-                        <Paper elevation={0} sx={{ p: 2, border: "1px solid #e9ecf2", borderRadius: 2 }}>
-                            <Typography sx={{ fontSize: 13, color: "#6b7280" }}>O'quvchilar</Typography>
-                            <Typography sx={{ fontSize: 34, fontWeight: 700 }}>{groupStats.totalStudents}</Typography>
-                        </Paper>
-                    </Box>
-
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e9ecf2", minWidth: 0 }}>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.25 }}>
-                            <Typography sx={{ fontSize: 24, fontWeight: 700 }}>Guruhlar</Typography>
-                            <Button variant="contained" size="small" onClick={() => setCreateOpen(true)} sx={{ textTransform: "none", borderRadius: 2 }}>
-                                Guruh qo'shish
-                            </Button>
-                        </Stack>
-
-                        <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
-                            <Table size="small" sx={{ minWidth: 1100 }}>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Status</TableCell>
-                                        <TableCell>Guruh</TableCell>
-                                        <TableCell>Kurs</TableCell>
-                                        <TableCell>Davomiyligi</TableCell>
-                                        <TableCell>Dars vaqti</TableCell>
-                                        <TableCell>Kim qo'shgan</TableCell>
-                                        <TableCell>Xona</TableCell>
-                                        <TableCell>O'qituvchilar</TableCell>
-                                        <TableCell>Talabalar</TableCell>
-                                        <TableCell align="right">Amallar</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {loading ? (
-                                        <TableRow><TableCell colSpan={10}><Typography sx={{ py: 1.5, color: "#6b7280" }}>Yuklanmoqda...</Typography></TableCell></TableRow>
-                                    ) : visibleGroups.length === 0 ? (
-                                        <TableRow><TableCell colSpan={10}><Typography sx={{ py: 1.5, color: "#6b7280" }}>Guruhlar topilmadi</Typography></TableCell></TableRow>
-                                    ) : (
-                                        visibleGroups.map((group) => (
-                                            <TableRow key={group.id}>
-                                                <TableCell><Chip size="small" label={group.status} color={group.status === "ACTIVE" ? "success" : "default"} /></TableCell>
-                                                <TableCell>{group.name}</TableCell>
-                                                <TableCell>{group.course?.name || "-"}</TableCell>
-                                                <TableCell>{group.durationMinutes} min</TableCell>
-                                                <TableCell>{group.startTime}</TableCell>
-                                                <TableCell>{new Date(group.createdAt).toLocaleDateString()}</TableCell>
-                                                <TableCell>{group.room?.name || "-"}</TableCell>
-                                                <TableCell>{(group.mentorAssignments?.length || 0) > 0 ? group.mentorAssignments.map((item) => item.mentor?.fullName).filter(Boolean).join(", ") : (group.mentor?.fullName || "-")}</TableCell>
-                                                <TableCell>
-                                                    {
-                                                        group.studentGroups?.filter(
-                                                            (sg) => sg.user?.role === "STUDENT" && sg.user?.isActive === true,
-                                                        ).length || 0
-                                                    }
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    <IconButton size="small" onClick={() => openView(group)}><VisibilityOutlined fontSize="small" /></IconButton>
-                                                    <IconButton size="small" onClick={() => openEdit(group)}><EditOutlined fontSize="small" /></IconButton>
-                                                    <Button size="small" onClick={() => handleArchiveToggle(group)} sx={{ textTransform: "none", minWidth: 48 }}>
-                                                        {group.status === "ACTIVE" ? "Arxiv" : "Aktiv"}
-                                                    </Button>
-                                                    <IconButton size="small" color="error" onClick={() => handleDelete(group)}><DeleteOutline fontSize="small" /></IconButton>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </Box>
-                    </Paper>
-                </>
+                <GroupListPanel
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    filteredGroups={visibleGroups}
+                    groupStats={groupStats}
+                    loading={loading}
+                    canManageGroups={canManageGroups}
+                    openView={openView}
+                    openEdit={openEdit}
+                    handleArchiveToggle={handleArchiveToggle}
+                    handleDelete={handleDelete}
+                    openCreate={() => setCreateOpen(true)}
+                />
             ) : (
-                <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e9ecf2", minWidth: 0, overflow: "hidden" }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.25 }}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                            <IconButton
-                                size="small"
-                                onClick={() => {
-                                    setSelectedGroup(null);
-                                    setAttendancePayload(null);
-                                    setLessonsData([]);
-                                    setHomeworkEditorLesson(null);
-                                    setVideoDialogOpen(false);
-                                    setVideoTargetLesson(null);
-                                    setVideoListDialogOpen(false);
-                                    setVideoListLesson(null);
-                                }}
-                            ><ArrowBack fontSize="small" /></IconButton>
-                            <Typography sx={{ fontSize: 26, fontWeight: 700 }}>{selectedGroup.name}</Typography>
-                        </Stack>
-                        <Stack direction="row" spacing={1}>
-                            <Button size="small" onClick={() => openEdit(selectedGroup)} sx={{ textTransform: "none" }}>Tahrirlash</Button>
-                            <Button size="small" onClick={() => setMentorAddOpen(true)} sx={{ textTransform: "none" }}>+ O'qituvchi qo'shish</Button>
-                            <Button size="small" onClick={() => setStudentAddOpen(true)} sx={{ textTransform: "none" }}>+ O'quvchi qo'shish</Button>
-                        </Stack>
-                    </Stack>
-
-                    <Stack direction="row" spacing={0.75} sx={{ mb: 1.5, flexWrap: "wrap" }}>
-                        {GROUP_VIEW_TABS.map((tab) => (
-                            <Chip
-                                key={tab.value}
-                                size="small"
-                                clickable
-                                label={tab.label}
-                                onClick={() => setGroupViewTab(tab.value)}
-                                sx={{
-                                    bgcolor: groupViewTab === tab.value ? "#ede9fe" : "#ffffff",
-                                    color: groupViewTab === tab.value ? "#6d3ee6" : "#4b5563",
-                                }}
-                            />
-                        ))}
-                    </Stack>
-
-                    {groupViewTab === "DARSLAR" ? (
-                        <Paper elevation={0} sx={{ p: 1.5, border: "1px solid #edf0f5", borderRadius: 2 }}>
-                            <Stack
-                                direction={{ xs: "column", md: "row" }}
-                                alignItems={{ xs: "flex-start", md: "center" }}
-                                justifyContent="space-between"
-                                spacing={1}
-                                sx={{ mb: 1.25 }}
-                            >
-                                <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
-                                    {LESSON_SUB_TABS.map((tab) => (
-                                        <Chip
-                                            key={tab}
-                                            label={tab}
-                                            size="small"
-                                            clickable
-                                            onClick={() => setLessonSubTab(tab)}
-                                            sx={{
-                                                bgcolor: lessonSubTab === tab ? "#ede9fe" : "#ffffff",
-                                                color: lessonSubTab === tab ? "#6d3ee6" : "#4b5563",
-                                            }}
-                                        />
-                                    ))}
-                                </Stack>
-                                {lessonSubTab !== "Videolar" ? (
-                                    <Button
-                                        variant="contained"
-                                        size="small"
-                                        onClick={() => setLessonCreateOpen(true)}
-                                        sx={{ textTransform: "none", borderRadius: 2 }}
-                                    >
-                                        Dars e'lon qilish
-                                    </Button>
-                                ) : null}
-                            </Stack>
-
-                            {homeworkEditorLesson ? (
-                                <Paper elevation={0} sx={{ p: 2, border: "1px solid #edf0f5", borderRadius: 2 }}>
-                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-                                        <IconButton size="small" onClick={() => setHomeworkEditorLesson(null)}>
-                                            <ArrowBack fontSize="small" />
-                                        </IconButton>
-                                        <Typography sx={{ fontSize: 24, fontWeight: 700 }}>
-                                            Yangi uyga vazifa yaratish
-                                        </Typography>
-                                    </Stack>
-
-                                    <Stack spacing={2} sx={{ maxWidth: 680 }}>
-                                        <TextField
-                                            label="Mavzu"
-                                            value={homeworkEditorLesson.name}
-                                            fullWidth
-                                            disabled
-                                        />
-                                        <TextField
-                                            label="Izoh"
-                                            value={homeworkTask}
-                                            onChange={(event) => setHomeworkTask(event.target.value)}
-                                            multiline
-                                            minRows={5}
-                                            fullWidth
-                                        />
-                                        <Stack spacing={0.75}>
-                                            <Typography sx={{ fontSize: 13, color: "#4b5563" }}>
-                                                Fayl yuklash (ixtiyoriy)
-                                            </Typography>
-                                            <Button variant="outlined" component="label" sx={{ width: "fit-content" }}>
-                                                Fayl tanlash
-                                                <input
-                                                    type="file"
-                                                    hidden
-                                                    onChange={(event) =>
-                                                        setHomeworkUploadFile(event.target.files?.[0] || null)
-                                                    }
-                                                />
-                                            </Button>
-                                            <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                                                {homeworkUploadFile ? homeworkUploadFile.name : "Fayl tanlanmagan"}
-                                            </Typography>
-                                        </Stack>
-
-                                        <Stack direction="row" justifyContent="flex-end" spacing={1.25}>
-                                            <Button onClick={() => setHomeworkEditorLesson(null)} disabled={creatingHomework}>
-                                                Bekor qilish
-                                            </Button>
-                                            <Button variant="contained" onClick={handleCreateHomework} disabled={creatingHomework}>
-                                                {creatingHomework ? "Saqlanmoqda..." : "E'lon qilish"}
-                                            </Button>
-                                        </Stack>
-                                    </Stack>
-                                </Paper>
-                            ) : lessonSubTab === "Uyga vazifa" ? (
-                                <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto", border: "1px solid #edf0f5", borderRadius: 2 }}>
-                                    <Table size="small" sx={{ minWidth: 940 }}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>#</TableCell>
-                                                <TableCell>Mavzu</TableCell>
-                                                <TableCell>Fayllar</TableCell>
-                                                <TableCell>Uyga vazifa</TableCell>
-                                                <TableCell>Yaratilgan sana</TableCell>
-                                                <TableCell align="right">Amallar</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {lessonsLoading ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={6}>
-                                                        <Typography sx={{ py: 1.5, color: "#6b7280" }}>Yuklanmoqda...</Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : lessonsData.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={6}>
-                                                        <Typography sx={{ py: 1.5, color: "#6b7280" }}>Darslar topilmadi</Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                lessonsData.map((lesson, index) => (
-                                                    <TableRow key={lesson.id}>
-                                                        <TableCell>{index + 1}</TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                size="small"
-                                                                label={lesson.name}
-                                                                sx={{
-                                                                    bgcolor: "#ffe8e2",
-                                                                    color: "#a3412d",
-                                                                    borderRadius: 1,
-                                                                    maxWidth: 520,
-                                                                }}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell>{lesson.files?.length ?? 0}</TableCell>
-                                                        <TableCell>{lesson.homework ? "Bor" : "Yo'q"}</TableCell>
-                                                        <TableCell>{new Date(lesson.createdAt).toLocaleString()}</TableCell>
-                                                        <TableCell align="right">
-                                                            <IconButton
-                                                                size="small"
-                                                                color="primary"
-                                                                onClick={() => openHomeworkEditor(lesson)}
-                                                            >
-                                                                <AssignmentTurnedInOutlined fontSize="small" />
-                                                            </IconButton>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            ) : lessonSubTab === "Videolar" ? (
-                                <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto", border: "1px solid #edf0f5", borderRadius: 2 }}>
-                                    <Table size="small" sx={{ minWidth: 920 }}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>#</TableCell>
-                                                <TableCell>Mavzu</TableCell>
-                                                <TableCell>Video soni</TableCell>
-                                                <TableCell>Qo'shilgan vaqt</TableCell>
-                                                <TableCell align="right">Video qo'shish</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {lessonsLoading ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={5}>
-                                                        <Typography sx={{ py: 1.5, color: "#6b7280" }}>Yuklanmoqda...</Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : lessonsData.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={5}>
-                                                        <Typography sx={{ py: 1.5, color: "#6b7280" }}>Darslar topilmadi</Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                lessonsData.map((lesson, index) => (
-                                                    <TableRow key={lesson.id} hover>
-                                                        <TableCell onClick={() => openVideoListDialog(lesson)} sx={{ cursor: "pointer" }}>{index + 1}</TableCell>
-                                                        <TableCell onClick={() => openVideoListDialog(lesson)} sx={{ cursor: "pointer" }}>{lesson.name}</TableCell>
-                                                        <TableCell onClick={() => openVideoListDialog(lesson)} sx={{ cursor: "pointer" }}>{lesson.files?.length ?? 0}</TableCell>
-                                                        <TableCell onClick={() => openVideoListDialog(lesson)} sx={{ cursor: "pointer" }}>{new Date(lesson.createdAt).toLocaleString()}</TableCell>
-                                                        <TableCell align="right">
-                                                            <Button
-                                                                size="small"
-                                                                startIcon={<SmartDisplayOutlined fontSize="small" />}
-                                                                onClick={() => openVideoDialog(lesson)}
-                                                            >
-                                                                Video qo'shish
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            ) : (
-                                <Typography sx={{ color: "#6b7280", py: 2 }}>
-                                    {lessonSubTab} bo'limi keyingi bosqichda qo'shiladi.
-                                </Typography>
-                            )}
-                        </Paper>
-                    ) : (
-                        <Stack direction={{ xs: "column", lg: "row" }} spacing={2} sx={{ minWidth: 0 }}>
-                            <Paper elevation={0} sx={{ p: 1.5, border: "1px solid #edf0f5", borderRadius: 2, minWidth: 280 }}>
-                                <Typography sx={{ fontWeight: 700, mb: 1 }}>Ma'lumotlar</Typography>
-                                <Typography sx={{ fontSize: 13 }}>Kurs: {selectedGroup.course?.name || "-"}</Typography>
-                                <Typography sx={{ fontSize: 13 }}>Kurs narxi: {selectedGroup.course?.price || "-"}</Typography>
-                                <Typography sx={{ fontSize: 13 }}>Dars kunlari: {(selectedGroup.weekDays || []).join(", ")}</Typography>
-                                <Typography sx={{ fontSize: 13 }}>Dars vaqti: {selectedGroup.startTime || "-"}</Typography>
-                                <Typography sx={{ fontSize: 13, mb: 1 }}>Davomiylik: {selectedGroup.durationMinutes || 0} min</Typography>
-
-                                <Typography sx={{ fontWeight: 700, mt: 1 }}>O'qituvchilar</Typography>
-                                {(selectedGroup.mentorAssignments || []).map((item) => (
-                                    <Typography key={item.mentorId} sx={{ fontSize: 12, color: "#4b5563" }}>{item.mentor?.fullName}</Typography>
-                                ))}
-
-                                <Typography sx={{ fontWeight: 700, mt: 1 }}>Talabalar</Typography>
-                                {(selectedGroup.studentGroups || []).map((item) => (
-                                    <Typography key={item.userId} sx={{ fontSize: 12, color: "#4b5563" }}>{item.user?.fullName}</Typography>
-                                ))}
-                            </Paper>
-
-                            <Box sx={{ flex: "1 1 0", width: 0, minWidth: 0 }}>
-                                <Stack direction={{ xs: "column", md: "row" }} alignItems={{ xs: "flex-start", md: "center" }} justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
-                                    <Stack direction="row" spacing={1} alignItems="center">
-                                        <Typography sx={{ fontWeight: 700 }}>Davomat</Typography>
-                                        <Button size="small" onClick={() => {
-                                            const [y, m] = viewMonth.split("-").map(Number);
-                                            setViewMonth(monthToString(new Date(y, m - 2, 1)));
-                                        }}>{"<"}</Button>
-                                        <Typography sx={{ fontSize: 13 }}>{viewMonth}</Typography>
-                                        <Button size="small" onClick={() => {
-                                            const [y, m] = viewMonth.split("-").map(Number);
-                                            setViewMonth(monthToString(new Date(y, m, 1)));
-                                        }}>{">"}</Button>
-                                    </Stack>
-
-                                    <Stack
-                                        direction="row"
-                                        spacing={1}
-                                        alignItems="center"
-                                        sx={{
-                                            flexWrap: "wrap",
-                                            justifyContent: { xs: "flex-start", md: "flex-end" },
-                                            width: "100%",
-                                        }}
-                                    >
-                                        <TextField size="small" placeholder="Student qidirish" value={attendanceNameFilter} onChange={(e) => setAttendanceNameFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 220 } }} />
-                                        <TextField size="small" select value={attendanceDayFilter} onChange={(e) => setAttendanceDayFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 96 } }}>
-                                            <MenuItem value="">Kun</MenuItem>
-                                            {lessonDaysInMonth.map((day) => (
-                                                <MenuItem key={day} value={String(day)}>{day}</MenuItem>
-                                            ))}
-                                        </TextField>
-                                        <TextField size="small" select value={attendanceStatusFilter} onChange={(e) => setAttendanceStatusFilter(e.target.value)} sx={{ width: { xs: "100%", sm: 128 } }}>
-                                            <MenuItem value="ALL">Barchasi</MenuItem>
-                                            <MenuItem value="PRESENT">Bor</MenuItem>
-                                            <MenuItem value="ABSENT">Yo'q</MenuItem>
-                                            <MenuItem value="NONE">Belgilanmagan</MenuItem>
-                                        </TextField>
-                                        <Button size="small" startIcon={<FileDownloadOutlined fontSize="small" />} onClick={exportAttendance}>
-                                            Export
-                                        </Button>
-                                    </Stack>
-                                </Stack>
-
-                                <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto", overflowY: "hidden", border: "1px solid #edf0f5", borderRadius: 2 }}>
-                                    <Table size="small" sx={{ minWidth: `${220 + (lessonDaysInMonth.length * 54)}px` }}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Nomi</TableCell>
-                                                {lessonDaysInMonth.map((day) => (
-                                                    <TableCell key={day} align="center">{day}</TableCell>
-                                                ))}
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {filteredAttendanceStudents.map((student) => (
-                                                <TableRow key={student.id}>
-                                                    <TableCell>{student.fullName}</TableCell>
-                                                    {lessonDaysInMonth.map((day) => {
-                                                        const activeDay = isLessonDay(day);
-                                                        const value = attendanceMap.get(`${student.id}-${dateKey(viewMonth, day)}`);
-                                                        return (
-                                                            <TableCell key={day} align="center" sx={{ py: 0.5, px: 0.5 }}>
-                                                                <Chip
-                                                                    size="small"
-                                                                    label={!activeDay ? "-" : value === true ? "Bor" : value === false ? "Yo'q" : "-"}
-                                                                    color={!activeDay ? "default" : value === true ? "success" : value === false ? "error" : "default"}
-                                                                    variant={!activeDay || value === undefined ? "outlined" : "filled"}
-                                                                    onClick={() => setAttendance(student.id, day)}
-                                                                    clickable={activeDay}
-                                                                    sx={{ minWidth: 44 }}
-                                                                />
-                                                                {activeDay && value !== undefined ? (
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        sx={{ ml: 0.25, p: 0.25, verticalAlign: "middle" }}
-                                                                        onClick={(event) => {
-                                                                            event.stopPropagation();
-                                                                            clearAttendance(student.id, day);
-                                                                        }}
-                                                                    >
-                                                                        <Clear sx={{ fontSize: 12 }} />
-                                                                    </IconButton>
-                                                                ) : null}
-                                                            </TableCell>
-                                                        );
-                                                    })}
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            </Box>
-                        </Stack>
-                    )}
-                </Paper>
+                <GroupDetailPanel
+                    group={selectedGroup}
+                    canManageGroups={canManageGroups}
+                    groupViewTabs={GROUP_VIEW_TABS}
+                    groupViewTab={groupViewTab}
+                    setGroupViewTab={setGroupViewTab}
+                    onBack={() => {
+                        setSelectedGroup(null);
+                        setAttendancePayload(null);
+                        setPendingAttendanceChanges({});
+                        setLessonsData([]);
+                        setHomeworkEditorLesson(null);
+                        setVideoDialogOpen(false);
+                        setVideoTargetLesson(null);
+                        setVideoListDialogOpen(false);
+                        setVideoListLesson(null);
+                        setLessonName("");
+                        setLessonAbout("");
+                    }}
+                    onEdit={() => openEdit(selectedGroup)}
+                    onAddMentor={() => setMentorAddOpen(true)}
+                    onAddStudent={() => setStudentAddOpen(true)}
+                    lessonsProps={{
+                        lessonTabs: LESSON_SUB_TABS,
+                        lessonSubTab,
+                        setLessonSubTab,
+                        onCreateLesson: () => setLessonCreateOpen(true),
+                        homeworkEditorLesson,
+                        setHomeworkEditorLesson,
+                        homeworkTask,
+                        setHomeworkTask,
+                        homeworkUploadFile,
+                        setHomeworkUploadFile,
+                        creatingHomework,
+                        handleCreateHomework,
+                        lessonsLoading,
+                        lessonsData,
+                        openHomeworkEditor,
+                        openVideoDialog,
+                        openVideoListDialog,
+                        loadLessons,
+                    }}
+                    attendanceProps={{
+                        viewMonth,
+                        setViewMonth,
+                        lessonDaysInMonth,
+                        filteredAttendanceStudents,
+                        attendanceNameFilter,
+                        setAttendanceNameFilter,
+                        attendanceDayFilter,
+                        setAttendanceDayFilter,
+                        attendanceStatusFilter,
+                        setAttendanceStatusFilter,
+                        exportAttendance,
+                        hasPendingAttendanceChanges,
+                        pendingAttendanceChanges,
+                        savingAttendance,
+                        setPendingAttendanceChanges,
+                        saveAttendanceChanges,
+                        isLessonDay,
+                        effectiveAttendanceMap,
+                        stageAttendance,
+                    }}
+                />
             )}
 
-            <Dialog open={createOpen} onClose={() => (!submitting ? setCreateOpen(false) : null)} maxWidth="sm" fullWidth>
-                <DialogTitle>Yangi guruh</DialogTitle>
-                <DialogContent>{renderForm()}</DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setCreateOpen(false)} disabled={submitting}>Bekor qilish</Button>
-                    <Button variant="contained" onClick={handleCreate} disabled={submitting}>{submitting ? "Saqlanmoqda..." : "Saqlash"}</Button>
-                </DialogActions>
-            </Dialog>
+            <GroupManagementDialogs
+                createOpen={createOpen}
+                setCreateOpen={setCreateOpen}
+                editOpen={editOpen}
+                setEditOpen={setEditOpen}
+                mentorAddOpen={mentorAddOpen}
+                setMentorAddOpen={setMentorAddOpen}
+                studentAddOpen={studentAddOpen}
+                setStudentAddOpen={setStudentAddOpen}
+                submitting={submitting}
+                renderForm={renderForm}
+                handleCreate={handleCreate}
+                handleUpdate={handleUpdate}
+                mentors={mentors}
+                students={students}
+                quickMentorIds={quickMentorIds}
+                setQuickMentorIds={setQuickMentorIds}
+                quickStudentIds={quickStudentIds}
+                setQuickStudentIds={setQuickStudentIds}
+                applyMentorQuickAdd={applyMentorQuickAdd}
+                applyStudentQuickAdd={applyStudentQuickAdd}
+            />
 
-            <Dialog open={editOpen} onClose={() => (!submitting ? setEditOpen(false) : null)} maxWidth="sm" fullWidth>
-                <DialogTitle>Guruhni tahrirlash</DialogTitle>
-                <DialogContent>{renderForm()}</DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setEditOpen(false)} disabled={submitting}>Bekor qilish</Button>
-                    <Button variant="contained" onClick={handleUpdate} disabled={submitting}>{submitting ? "Saqlanmoqda..." : "Saqlash"}</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog open={mentorAddOpen} onClose={() => setMentorAddOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>O'qituvchi qo'shish</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ pt: 1 }}>
-                        <TextField
-                            select
-                            label="Mentorlar"
-                            value={quickMentorIds}
-                            onChange={(e) => setQuickMentorIds(e.target.value)}
-                            fullWidth
-                            slotProps={{ select: { multiple: true } }}
-                        >
-                            {mentors.map((mentor) => <MenuItem key={mentor.id} value={mentor.id}>{mentor.fullName}</MenuItem>)}
-                        </TextField>
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setMentorAddOpen(false)}>Bekor</Button>
-                    <Button variant="contained" onClick={applyMentorQuickAdd}>Saqlash</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog open={studentAddOpen} onClose={() => setStudentAddOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>O'quvchi qo'shish</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ pt: 1 }}>
-                        <TextField
-                            select
-                            label="O'quvchilar"
-                            value={quickStudentIds}
-                            onChange={(e) => setQuickStudentIds(e.target.value)}
-                            fullWidth
-                            slotProps={{ select: { multiple: true } }}
-                        >
-                            {students.map((student) => <MenuItem key={student.id} value={student.id}>{student.fullName}</MenuItem>)}
-                        </TextField>
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setStudentAddOpen(false)}>Bekor</Button>
-                    <Button variant="contained" onClick={applyStudentQuickAdd}>Saqlash</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog
-                open={lessonCreateOpen}
-                onClose={() => (!creatingLesson ? setLessonCreateOpen(false) : null)}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle>Yo'qlama va mavzu kiritish</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ pt: 1 }}>
-                        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                            <Chip
-                                size="small"
-                                clickable
-                                label="O'quv reja bo'yicha"
-                                onClick={() => setLessonCreateMode("PLAN")}
-                                sx={{
-                                    bgcolor: lessonCreateMode === "PLAN" ? "#ede9fe" : "#ffffff",
-                                    color: lessonCreateMode === "PLAN" ? "#6d3ee6" : "#4b5563",
-                                }}
-                            />
-                            <Chip
-                                size="small"
-                                clickable
-                                label="Boshqa"
-                                onClick={() => setLessonCreateMode("CUSTOM")}
-                                sx={{
-                                    bgcolor: lessonCreateMode === "CUSTOM" ? "#ede9fe" : "#ffffff",
-                                    color: lessonCreateMode === "CUSTOM" ? "#6d3ee6" : "#4b5563",
-                                }}
-                            />
-                        </Stack>
-
-                        <TextField
-                            label="Mavzu"
-                            value={lessonName}
-                            onChange={(event) => setLessonName(event.target.value)}
-                            placeholder="CRM frontend"
-                            fullWidth
-                            autoFocus
-                        />
-                        <Typography sx={{ color: "#6b7280", fontSize: 12 }}>
-                            Hozir dars yaratishda faqat nom talab qilinadi. Video keyin darsga biriktiriladi.
-                        </Typography>
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setLessonCreateOpen(false)} disabled={creatingLesson}>Bekor</Button>
-                    <Button variant="contained" onClick={handleCreateLesson} disabled={creatingLesson}>
-                        {creatingLesson ? "Saqlanmoqda..." : "Saqlash"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog
-                open={videoDialogOpen}
-                onClose={() => (!addingVideo ? setVideoDialogOpen(false) : null)}
-                maxWidth="md"
-                fullWidth
-            >
-                <DialogTitle>Video qo'shish</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ pt: 1 }}>
-                        <Typography sx={{ fontSize: 13, color: "#6b7280" }}>
-                            Dars: {videoTargetLesson?.name || "-"}
-                        </Typography>
-                        <Box
-                            component="label"
-                            sx={{
-                                border: "1px dashed #8ad3c0",
-                                borderRadius: 2,
-                                p: { xs: 2, md: 3 },
-                                textAlign: "center",
-                                backgroundColor: "#f8fffc",
-                                cursor: "pointer",
-                            }}
-                        >
-                            <input
-                                type="file"
-                                accept="video/*"
-                                hidden
-                                onChange={(event) => setVideoUploadFile(event.target.files?.[0] || null)}
-                            />
-                            <UploadFileOutlined sx={{ fontSize: 36, color: "#1da67a", mb: 1 }} />
-                            <Typography sx={{ fontWeight: 600, mb: 0.5 }}>
-                                Video faylni yuklash uchun faylni tanlang
-                            </Typography>
-                            <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                                Qo'llab-quvvatlanadigan formatlar: mp4, webm, mpeg, avi, mkv, mov
-                            </Typography>
-                            <Typography sx={{ fontSize: 12, color: "#256d5a", mt: 0.75 }}>
-                                {videoUploadFile ? `Tanlangan fayl: ${videoUploadFile.name}` : "Fayl tanlanmagan"}
-                            </Typography>
-                        </Box>
-                        <TextField
-                            label="Izoh (ixtiyoriy)"
-                            value={videoForm.note}
-                            onChange={(event) =>
-                                setVideoForm((prev) => ({ ...prev, note: event.target.value }))
-                            }
-                            fullWidth
-                        />
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setVideoDialogOpen(false)} disabled={addingVideo}>Bekor qilish</Button>
-                    <Button variant="contained" onClick={handleAddVideoToLesson} disabled={addingVideo}>
-                        {addingVideo ? "Saqlanmoqda..." : "Saqlash"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            <Dialog
-                open={videoListDialogOpen}
-                onClose={() => setVideoListDialogOpen(false)}
-                maxWidth="md"
-                fullWidth
-            >
-                <DialogTitle>{videoListLesson?.name || "Dars videolari"}</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={1.25} sx={{ pt: 1 }}>
-                        {videoListLesson?.files?.length ? (
-                            videoListLesson.files.map((item) => (
-                                <Paper
-                                    key={item.id}
-                                    elevation={0}
-                                    sx={{ p: 1.25, border: "1px solid #edf0f5", borderRadius: 2 }}
-                                >
-                                    <Stack spacing={1}>
-                                        <video
-                                            controls
-                                            src={toPublicUrl(item.file)}
-                                            style={{ width: "100%", maxHeight: 260, borderRadius: 8 }}
-                                        />
-                                        <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                                            {item.note || "Izoh yo'q"}
-                                        </Typography>
-                                    </Stack>
-                                </Paper>
-                            ))
-                        ) : (
-                            <Typography sx={{ color: "#6b7280" }}>Bu darsga hali video biriktirilmagan.</Typography>
-                        )}
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setVideoListDialogOpen(false)}>Yopish</Button>
-                </DialogActions>
-            </Dialog>
+            <GroupLessonDialogs
+                lessonCreateOpen={lessonCreateOpen}
+                setLessonCreateOpen={setLessonCreateOpen}
+                creatingLesson={creatingLesson}
+                lessonCreateMode={lessonCreateMode}
+                setLessonCreateMode={setLessonCreateMode}
+                lessonName={lessonName}
+                setLessonName={setLessonName}
+                lessonAbout={lessonAbout}
+                setLessonAbout={setLessonAbout}
+                handleCreateLesson={handleCreateLesson}
+                videoDialogOpen={videoDialogOpen}
+                setVideoDialogOpen={setVideoDialogOpen}
+                addingVideo={addingVideo}
+                videoTargetLesson={videoTargetLesson}
+                videoUploadFile={videoUploadFile}
+                setVideoUploadFile={setVideoUploadFile}
+                videoForm={videoForm}
+                setVideoForm={setVideoForm}
+                handleAddVideoToLesson={handleAddVideoToLesson}
+                videoListDialogOpen={videoListDialogOpen}
+                setVideoListDialogOpen={setVideoListDialogOpen}
+                videoListLesson={videoListLesson}
+                toPublicUrl={toPublicUrl}
+            />
         </Stack>
     );
 }

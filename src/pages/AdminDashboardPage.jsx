@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Accordion, AccordionDetails, AccordionSummary, Avatar, Button, Box, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, MenuItem, Paper, Select, Stack, TextField, Typography, } from "@mui/material";
-import { AutoGraph, Book, CalendarMonth, DarkMode, DeleteOutline, DiamondOutlined, EditOutlined, ExpandMore, Groups, Home, Inventory2, MailOutline, MonetizationOn, NotificationsNone, Person, School, Search, Settings, } from "@mui/icons-material";
+import { Accordion, AccordionDetails, AccordionSummary, Button, Box, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, FormGroup, IconButton, InputAdornment, MenuItem, Paper, Select, Stack, TextField, Typography, } from "@mui/material";
+import { AutoGraph, Book, CalendarMonth, DarkMode, DeleteOutline, DiamondOutlined, EditOutlined, ExpandMore, Groups, Home, Inventory2, Logout, MailOutline, MonetizationOn, NotificationsNone, Person, School, Search, Settings, } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import { jwtDecode } from "jwt-decode";
 import api from "../services/axios";
@@ -11,6 +11,8 @@ import StudentsSection from "../components/dashboard/StudentsSection";
 import TeachersSection from "../components/dashboard/TeachersSection";
 import EmployeesManagementSection from "../components/dashboard/EmployeesManagementSection";
 import GroupsSection from "../components/dashboard/GroupsSection";
+import AdminProfileSection from "../components/dashboard/AdminProfileSection";
+import { updateProfileRequest } from "../services/auth.service";
 
 const menuItems = [
     { label: "Asosiy", icon: <Home fontSize="small" /> },
@@ -20,6 +22,11 @@ const menuItems = [
     { label: "Sotuvlar", icon: <DiamondOutlined fontSize="small" /> },
     { label: "Moliya", icon: <MonetizationOn fontSize="small" /> },
     { label: "Boshqarish", icon: <Settings fontSize="small" /> },
+];
+
+const bottomMenuItems = [
+    { label: "Profil", icon: <Person fontSize="small" /> },
+    { label: "Chiqish", icon: <Logout fontSize="small" />, color: "#b42318" },
 ];
 
 const managementTabs = [
@@ -77,6 +84,7 @@ export default function AdminDashboardPage() {
     const [roomEditDialogOpen, setRoomEditDialogOpen] = useState(false);
     const [updatingRoom, setUpdatingRoom] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
+    const [savingProfile, setSavingProfile] = useState(false);
     const [groupDialogOpen, setGroupDialogOpen] = useState(false);
     const [creatingGroup, setCreatingGroup] = useState(false);
     const [roomForm, setRoomForm] = useState({
@@ -131,13 +139,31 @@ export default function AdminDashboardPage() {
         }
     }, []);
 
-    const handleSidebarSelect = (label) => {
-        setActiveItem(label);
-    };
-
     const handleLogout = () => {
         logout();
         navigate("/login", { replace: true });
+    };
+
+    const handleSidebarSelect = (label) => {
+        if (label === "Chiqish") {
+            handleLogout();
+            return;
+        }
+        setActiveItem(label);
+    };
+
+    const handleProfileSubmit = async (payload) => {
+        setSavingProfile(true);
+        try {
+            const updated = await updateProfileRequest(payload);
+            setCurrentUser(updated);
+            toast.success("Profil yangilandi");
+        } catch (error) {
+            const message = error?.response?.data?.message || "Profil yangilanmadi";
+            toast.error(Array.isArray(message) ? message[0] : message);
+        } finally {
+            setSavingProfile(false);
+        }
     };
 
     useEffect(() => {
@@ -506,6 +532,7 @@ export default function AdminDashboardPage() {
         <Box sx={{ minHeight: "100vh", backgroundColor: "#f2f4f7", display: "flex" }}>
             <SidebarNav
                 items={menuItems}
+                bottomItems={bottomMenuItems}
                 activeItem={activeItem}
                 onSelect={handleSidebarSelect}
             />
@@ -563,18 +590,6 @@ export default function AdminDashboardPage() {
                         <IconButton sx={{ bgcolor: "#fff" }}>
                             <MailOutline fontSize="small" />
                         </IconButton>
-                        <Avatar
-                            src={currentUser?.image ? `${api.defaults.baseURL}${currentUser.image}` : undefined}
-                            sx={{ width: 34, height: 34, bgcolor: "#1f2937", fontSize: 13 }}
-                        >
-                            {currentUser?.fullName?.slice(0, 1)?.toUpperCase() || "A"}
-                        </Avatar>
-                        <Chip
-                            label="Chiqish"
-                            size="small"
-                            onClick={handleLogout}
-                            sx={{ cursor: "pointer" }}
-                        />
                     </Stack>
                 </Stack>
 
@@ -682,6 +697,12 @@ export default function AdminDashboardPage() {
                             <StudentsSection />
                         ) : activeItem === "O'qituvchilar" ? (
                             <TeachersSection />
+                        ) : activeItem === "Profil" ? (
+                            <AdminProfileSection
+                                profile={currentUser}
+                                onSubmit={handleProfileSubmit}
+                                submitting={savingProfile}
+                            />
                         ) : activeItem === "Boshqarish" ? (
                             <Stack spacing={1.5}>
                                 <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
