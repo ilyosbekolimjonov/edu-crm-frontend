@@ -17,6 +17,18 @@ export const getUsersRequest = async (role) => {
     return data;
 };
 
+export const getProfileRequest = async () => {
+    const { data } = await api.get("/auth/profile");
+    return data;
+};
+
+export const updateProfileRequest = async (payload) => {
+    const { data } = await api.patch("/auth/profile", payload, {
+        headers: payload instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+    });
+    return data;
+};
+
 export const updateUserRequest = async (id, payload) => {
     const { data } = await api.patch(`/auth/users/${id}`, payload);
     return data;

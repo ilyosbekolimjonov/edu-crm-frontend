@@ -4,14 +4,16 @@ import { Add, DeleteOutline, EditOutlined, UploadFileOutlined } from "@mui/icons
 import toast from "react-hot-toast";
 import api from "../../services/axios";
 import { registerStudentRequest, uploadUserImageRequest } from "../../services/auth.service";
+import PhoneInput from "../common/PhoneInput";
 
 const initialForm = {
     fullName: "",
     username: "",
     email: "",
-    phone: "",
+    phone: "+998",
     role: "ASSISTANT",
     password: "",
+    confirmPassword: "",
 };
 
 export default function EmployeesManagementSection() {
@@ -56,8 +58,16 @@ export default function EmployeesManagementSection() {
     }, []);
 
     const handleCreateEmployee = async () => {
-        if (!createForm.fullName || !createForm.username || !createForm.email || !createForm.phone || !createForm.password || !createForm.role) {
+        if (!createForm.fullName || !createForm.username || !createForm.email || !createForm.phone || !createForm.password || !createForm.confirmPassword || !createForm.role) {
             toast.error("Majburiy maydonlarni to'ldiring");
+            return;
+        }
+        if (!/^\+998\d{9}$/.test(createForm.phone)) {
+            toast.error("Telefon +998XXXXXXXXX formatida bo'lishi kerak");
+            return;
+        }
+        if (createForm.password !== createForm.confirmPassword) {
+            toast.error("Parollar mos emas");
             return;
         }
 
@@ -108,6 +118,10 @@ export default function EmployeesManagementSection() {
         if (!editingEmployee) return;
         if (!form.fullName || !form.username || !form.email || !form.phone || !form.role) {
             toast.error("Majburiy maydonlarni to'ldiring");
+            return;
+        }
+        if (!/^\+998\d{9}$/.test(form.phone)) {
+            toast.error("Telefon +998XXXXXXXXX formatida bo'lishi kerak");
             return;
         }
 
@@ -229,8 +243,9 @@ export default function EmployeesManagementSection() {
                         <TextField label="FIO" value={createForm.fullName} onChange={(e) => setCreateForm((p) => ({ ...p, fullName: e.target.value }))} fullWidth />
                         <TextField label="Username" value={createForm.username} onChange={(e) => setCreateForm((p) => ({ ...p, username: e.target.value }))} fullWidth />
                         <TextField label="Email" type="email" value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} fullWidth />
-                        <TextField label="Telefon" value={createForm.phone} onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))} fullWidth />
+                        <PhoneInput value={createForm.phone} onChange={(value) => setCreateForm((p) => ({ ...p, phone: value }))} />
                         <TextField label="Parol" type="password" value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} fullWidth />
+                        <TextField label="Parolni tasdiqlang" type="password" value={createForm.confirmPassword} onChange={(e) => setCreateForm((p) => ({ ...p, confirmPassword: e.target.value }))} fullWidth />
                         <TextField select label="Role" value={createForm.role} onChange={(e) => setCreateForm((p) => ({ ...p, role: e.target.value }))} fullWidth>
                             <MenuItem value="ASSISTANT">ASSISTANT</MenuItem>
                             <MenuItem value="ADMIN">ADMIN</MenuItem>
@@ -275,7 +290,7 @@ export default function EmployeesManagementSection() {
                         <TextField label="FIO" value={form.fullName} onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))} fullWidth />
                         <TextField label="Username" value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} fullWidth />
                         <TextField label="Email" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} fullWidth />
-                        <TextField label="Telefon" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} fullWidth />
+                        <PhoneInput value={form.phone} onChange={(value) => setForm((p) => ({ ...p, phone: value }))} />
                         <TextField select label="Role" value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} fullWidth>
                             <MenuItem value="ASSISTANT">ASSISTANT</MenuItem>
                             <MenuItem value="ADMIN">ADMIN</MenuItem>

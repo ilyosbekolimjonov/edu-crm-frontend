@@ -28,13 +28,14 @@ import {
     updateUserRequest,
 } from "../../services/auth.service";
 import api from "../../services/axios";
+import PhoneInput from "../common/PhoneInput";
 import TeacherCreateDrawer from "./TeacherCreateDrawer";
 
 const initialEditForm = {
     fullName: "",
     username: "",
     email: "",
-    phone: "",
+    phone: "+998",
     password: "",
     about: "",
     experience: "0",
@@ -139,6 +140,10 @@ export default function TeachersSection() {
         if (!editingTeacher) return;
         if (!editForm.fullName || !editForm.username || !editForm.email || !editForm.phone) {
             toast.error("FIO, username, email va telefon majburiy");
+            return;
+        }
+        if (!/^\+998\d{9}$/.test(editForm.phone)) {
+            toast.error("Telefon +998XXXXXXXXX formatida bo'lishi kerak");
             return;
         }
 
@@ -316,14 +321,7 @@ export default function TeachersSection() {
                             }
                             fullWidth
                         />
-                        <TextField
-                            label="Telefon"
-                            value={editForm.phone}
-                            onChange={(event) =>
-                                setEditForm((prev) => ({ ...prev, phone: event.target.value }))
-                            }
-                            fullWidth
-                        />
+                        <PhoneInput value={editForm.phone} onChange={(value) => setEditForm((prev) => ({ ...prev, phone: value }))} />
                         <TextField
                             label="About"
                             value={editForm.about}
