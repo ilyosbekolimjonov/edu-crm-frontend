@@ -151,8 +151,8 @@ export default function HomeworkReviewSection({ lessons = [], loading, onReviewS
     const handleReviewSubmission = async (submissionId, payload) => {
         if (!selectedRow) return;
 
-        await api.patch(`/submissions/${submissionId}/review`, payload);
-        toast.success(payload.status === "ACCEPTED" ? "Vazifa qabul qilindi" : "Vazifa qaytarildi");
+        const { data } = await api.patch(`/submissions/${submissionId}/review`, payload);
+        toast.success(data?.status === "REJECTED" ? "Vazifa rad etildi" : "Vazifa qabul qilindi");
 
         const reviewData = await fetchReviewData(selectedRow);
         setSelectedReviewData(reviewData);
@@ -160,6 +160,7 @@ export default function HomeworkReviewSection({ lessons = [], loading, onReviewS
         if (onReviewSaved) {
             await onReviewSaved();
         }
+        return data;
     };
 
     if (loading) {
