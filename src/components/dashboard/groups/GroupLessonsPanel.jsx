@@ -1,4 +1,4 @@
-import { ArrowBack, SmartDisplayOutlined } from "@mui/icons-material";
+import { ArrowBack, DeleteOutline, SmartDisplayOutlined } from "@mui/icons-material";
 import {
     Box,
     Button,
@@ -50,6 +50,7 @@ export default function GroupLessonsPanel({
     openHomeworkEditor,
     openVideoDialog,
     openVideoListDialog,
+    handleDeleteLesson,
     selectedGroup,
     loadLessons,
 }) {
@@ -175,14 +176,19 @@ export default function GroupLessonsPanel({
                                         <TableCell>{lesson.homework ? "Bor" : "Yo'q"}</TableCell>
                                         <TableCell>{new Date(lesson.createdAt).toLocaleString()}</TableCell>
                                         <TableCell align="right">
-                                            <Button
-                                                size="small"
-                                                variant="contained"
-                                                onClick={() => openHomeworkEditor(lesson)}
-                                                sx={{ textTransform: "none", borderRadius: 1 }}
-                                            >
-                                                {lesson.homework ? "Vazifani boshqarish" : "Vazifa e'lon qilish"}
-                                            </Button>
+                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                                <Button
+                                                    size="small"
+                                                    variant="contained"
+                                                    onClick={() => openHomeworkEditor(lesson)}
+                                                    sx={{ textTransform: "none", borderRadius: 1 }}
+                                                >
+                                                    {lesson.homework ? "Vazifani boshqarish" : "Vazifa e'lon qilish"}
+                                                </Button>
+                                                <IconButton size="small" color="error" onClick={() => handleDeleteLesson(lesson)}>
+                                                    <DeleteOutline fontSize="small" />
+                                                </IconButton>
+                                            </Stack>
                                         </TableCell>
                                     </TableRow>
                                 ))
@@ -199,7 +205,7 @@ export default function GroupLessonsPanel({
                                 <TableCell>Mavzu</TableCell>
                                 <TableCell>Video soni</TableCell>
                                 <TableCell>Qo'shilgan vaqt</TableCell>
-                                <TableCell align="right">Video qo'shish</TableCell>
+                                <TableCell align="right">Amallar</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -223,13 +229,18 @@ export default function GroupLessonsPanel({
                                         <TableCell onClick={() => openVideoListDialog(lesson)} sx={{ cursor: "pointer" }}>{lesson.files?.length ?? 0}</TableCell>
                                         <TableCell onClick={() => openVideoListDialog(lesson)} sx={{ cursor: "pointer" }}>{new Date(lesson.createdAt).toLocaleString()}</TableCell>
                                         <TableCell align="right">
-                                            <Button
-                                                size="small"
-                                                startIcon={<SmartDisplayOutlined fontSize="small" />}
-                                                onClick={() => openVideoDialog(lesson)}
-                                            >
-                                                Video qo'shish
-                                            </Button>
+                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                                <Button
+                                                    size="small"
+                                                    startIcon={<SmartDisplayOutlined fontSize="small" />}
+                                                    onClick={() => openVideoDialog(lesson)}
+                                                >
+                                                    Video qo'shish
+                                                </Button>
+                                                <IconButton size="small" color="error" onClick={() => handleDeleteLesson(lesson)}>
+                                                    <DeleteOutline fontSize="small" />
+                                                </IconButton>
+                                            </Stack>
                                         </TableCell>
                                     </TableRow>
                                 ))

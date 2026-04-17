@@ -29,34 +29,49 @@ export default function GroupListPanel({
 }) {
     return (
         <>
-            <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
-                <Chip
-                    size="small"
-                    clickable
-                    label="Faol guruhlar"
-                    onClick={() => setActiveTab("ACTIVE")}
-                    sx={{ bgcolor: activeTab === "ACTIVE" ? "#ede9fe" : "#ffffff", color: activeTab === "ACTIVE" ? "#6d3ee6" : "#4b5563" }}
-                />
-                <Chip
-                    size="small"
-                    clickable
-                    label="Arxiv"
-                    onClick={() => setActiveTab("ARCHIVED")}
-                    sx={{ bgcolor: activeTab === "ARCHIVED" ? "#ede9fe" : "#ffffff", color: activeTab === "ARCHIVED" ? "#6d3ee6" : "#4b5563" }}
-                />
-                <Chip
-                    size="small"
-                    clickable
-                    label="Barchasi"
-                    onClick={() => setActiveTab("ALL")}
-                    sx={{ bgcolor: activeTab === "ALL" ? "#ede9fe" : "#ffffff", color: activeTab === "ALL" ? "#6d3ee6" : "#4b5563" }}
-                />
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    alignItems: { xs: "stretch", sm: "center" },
+                    justifyContent: "space-between",
+                    gap: 1,
+                }}
+            >
+                <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
+                    <Chip
+                        size="small"
+                        clickable
+                        label="Faol guruhlar"
+                        onClick={() => setActiveTab("ACTIVE")}
+                        sx={{ bgcolor: activeTab === "ACTIVE" ? "#ede9fe" : "#ffffff", color: activeTab === "ACTIVE" ? "#6d3ee6" : "#4b5563" }}
+                    />
+                    <Chip
+                        size="small"
+                        clickable
+                        label="Arxiv"
+                        onClick={() => setActiveTab("ARCHIVED")}
+                        sx={{ bgcolor: activeTab === "ARCHIVED" ? "#ede9fe" : "#ffffff", color: activeTab === "ARCHIVED" ? "#6d3ee6" : "#4b5563" }}
+                    />
+                    <Chip
+                        size="small"
+                        clickable
+                        label="Barchasi"
+                        onClick={() => setActiveTab("ALL")}
+                        sx={{ bgcolor: activeTab === "ALL" ? "#ede9fe" : "#ffffff", color: activeTab === "ALL" ? "#6d3ee6" : "#4b5563" }}
+                    />
+                </Stack>
                 {canManageGroups ? (
-                    <Button variant="contained" size="small" onClick={openCreate} sx={{ ml: "auto", textTransform: "none" }}>
+                    <Button
+                        variant="contained"
+                        size="small"
+                        onClick={openCreate}
+                        sx={{ alignSelf: { xs: "flex-start", sm: "center" }, textTransform: "none" }}
+                    >
                         Guruh qo'shish
                     </Button>
                 ) : null}
-            </Stack>
+            </Box>
 
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0,1fr))" }, gap: 1 }}>
                 <Paper elevation={0} sx={{ p: 2, border: "1px solid #e9ecf2", borderRadius: 2 }}>

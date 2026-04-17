@@ -211,6 +211,37 @@ export default function GroupsSection() {
         }
     };
 
+    const handleDeleteLesson = async (lesson) => {
+        if (!selectedGroup || !lesson) return;
+        const confirmed = window.confirm(`"${lesson.name}" darsini o'chirmoqchimisiz?`);
+        if (!confirmed) return;
+
+        try {
+            await api.delete(`/lessons/${lesson.id}`);
+            toast.success("Dars o'chirildi");
+            if (homeworkEditorLesson?.id === lesson.id) {
+                setHomeworkEditorLesson(null);
+                setHomeworkTask("");
+                setHomeworkUploadFile(null);
+            }
+            if (videoTargetLesson?.id === lesson.id) {
+                setVideoDialogOpen(false);
+                setVideoTargetLesson(null);
+                setVideoUploadFile(null);
+                setVideoForm({ note: "" });
+            }
+            if (videoListLesson?.id === lesson.id) {
+                setVideoListDialogOpen(false);
+                setVideoListLesson(null);
+            }
+            setLessonsData((prev) => prev.filter((item) => item.id !== lesson.id));
+            await loadLessons(selectedGroup.id);
+        } catch (error) {
+            const message = error?.response?.data?.message || "Darsni o'chirishda xatolik";
+            toast.error(Array.isArray(message) ? message[0] : message);
+        }
+    };
+
     const openVideoDialog = (lesson) => {
         setVideoTargetLesson(lesson);
         setVideoForm({ note: "" });
@@ -771,6 +802,7 @@ export default function GroupsSection() {
                         openHomeworkEditor,
                         openVideoDialog,
                         openVideoListDialog,
+                        handleDeleteLesson,
                         loadLessons,
                     }}
                     attendanceProps={{

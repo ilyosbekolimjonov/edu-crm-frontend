@@ -44,7 +44,7 @@ export default function HomeworkSubmissionDetailModal({
     const content = submission?.content || submission?.text || "";
     const status = submission?.status || "PENDING";
 
-    const submitReview = (nextStatus) => {
+    const submitReview = () => {
         const numericScore = Number(score);
         if (!Number.isInteger(numericScore) || numericScore < 0 || numericScore > 100) {
             setError("Ball 0 dan 100 gacha butun son bo'lishi kerak");
@@ -53,7 +53,6 @@ export default function HomeworkSubmissionDetailModal({
 
         setError("");
         onReview({
-            status: nextStatus,
             score: numericScore,
             comment: comment.trim(),
         });
@@ -150,7 +149,7 @@ export default function HomeworkSubmissionDetailModal({
                     <aside className="rounded-md border border-slate-200 bg-slate-50 p-4">
                         <h3 className="text-base font-bold text-slate-950">Baholash paneli</h3>
                         <p className="mt-1 text-sm text-slate-500">
-                            Qabul qilish yoki qaytarishdan oldin ball va izohni tekshiring.
+                            Ball 60 dan past bo'lsa rad etiladi, 60 yoki undan yuqori bo'lsa qabul qilinadi.
                         </p>
 
                         <label className="mt-5 block text-sm font-semibold text-slate-700">
@@ -207,19 +206,11 @@ export default function HomeworkSubmissionDetailModal({
                     </button>
                     <button
                         type="button"
-                        onClick={() => submitReview("REJECTED")}
-                        disabled={saving}
-                        className="rounded-md bg-red-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {saving ? "Saqlanmoqda..." : "Qaytarish"}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => submitReview("ACCEPTED")}
+                        onClick={submitReview}
                         disabled={saving}
                         className="rounded-md bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {saving ? "Saqlanmoqda..." : "Qabul qilish"}
+                        {saving ? "Saqlanmoqda..." : "Saqlash"}
                     </button>
                 </div>
             </div>

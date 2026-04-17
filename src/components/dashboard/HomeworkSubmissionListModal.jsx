@@ -59,8 +59,8 @@ export default function HomeworkSubmissionListModal({
         setSaving(true);
         setActionError("");
         try {
-            await onReviewSubmission(selectedSubmission.id, payload);
-            setActiveTab(payload.status);
+            const reviewed = await onReviewSubmission(selectedSubmission.id, payload);
+            setActiveTab(reviewed?.status || (payload.score < 60 ? "REJECTED" : "ACCEPTED"));
             setSelectedSubmission(null);
         } catch (reviewError) {
             const message =
